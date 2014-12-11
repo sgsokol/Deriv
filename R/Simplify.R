@@ -1,10 +1,6 @@
 # Simplify.R -- symbollic simplification
-# Copyright (C) 2007 Andrew Clausen (https://andrewclausen.net)
+# written by Andrew Clausen <clausen@econ.upenn.edu> in 2007
 # thanks to a bug fix from Mark Reid <mark.reid@anu.edu.au> in 21/2/2009
-#
-# This file may be distributed under the terms of the GNU General Public
-# Licence version 3 or later.  See http://www.gnu.org/licenses/gpl.html
-# If these arrangements are inconvenient, please contact the author.
 #
 # This isn't a serious attempt at simplification code.  It just does some
 # obvious things like 0 + x => x.  It was written to support Deriv.R.
@@ -67,7 +63,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	b <- Simplify_(expr[[3]])
 
 	if (is.numeric(a) && all(a == 0)) {
-		-b
+		if (is.numeric(b)) -b else substitute(-b)
 	} else if (is.numeric(b) && all(b == 0)) {
 		a
 	} else if (is.numeric(a) && is.numeric(b)) {
@@ -138,13 +134,3 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		expr
 	}
 }
-
-assign("simplifications", new.env(), envir=globalenv())
-
-assign("+", `Simplify.+`, envir=simplifications)
-assign("-", `Simplify.-`, envir=simplifications)
-assign("*", `Simplify.*`, envir=simplifications)
-assign("(", `Simplify.(`, envir=simplifications)
-assign("c", `Simplify.c`, envir=simplifications)
-assign("^", `Simplify.^`, envir=simplifications)
-

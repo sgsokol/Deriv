@@ -1,0 +1,11 @@
+Package: Deriv
+Type: Package
+Title: Symbollic differentiation
+Version: 1.0
+Date: 2014-12-10
+Author: Andrew Clausen
+Maintainer: Serguei Sokol <sokol@insa-toulouse.fr>
+Description: Compared to R functions deriv and D(), Deriv() admits user defined
+    function for derivation as well as function substitution in arguments of
+    functions to be derived.
+License: GPL (>=3)

@@ -1,0 +1,14 @@
+Version 1.0
+===========
+
+* 2007 Andrew Clausen has written an original code Deriv.R and Simplify.R
+ distributed on his site https://andrewclausen.net/computing/deriv.html
+
+* 2009-2-21 Mark Reid's patch
+
+* 2014-12-10
+ - Andrew Clausen passed the maintenance to Serguei Sokol
+ - Serguei Sokol has fixed a bug in simplification of "a-b"
+ - revamped the documentation and code as an R package
+ - put the code to GitHub https://github.com/sgsokol/Deriv
+ - submitted the package to CRAN
