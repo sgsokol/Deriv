@@ -1,6 +1,6 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
-#' @aliases Deriv.function Deriv
+#' @aliases Deriv.function Deriv derivatives simplifications
 #' @concept symbollic derivation
 # \usage{
 # Deriv.function(f, x = names(formals(f)), env = environment(f))
@@ -68,6 +68,9 @@
 #' gradients but not Jacobians or Hessians.
 #'  \item Gives useless error messages when it gets stuck.  This could be fixed.
 #' }
+#' Two working environments derivatives and simplifications are created in the package
+#' namescape. As their names indicates, they contain tables of derivatives and
+#' simplification rules. A priori, user does not had to manipulate them directly.
 #'
 #' @examples
 #'
@@ -305,7 +308,7 @@ Deriv.ifelse <- function(f, x, env)
 }
 
 .onLoad <- function(libname, pkgname) {
-   assign("simplifications", new.env(), envir=globalenv())
+   assign("simplifications", new.env(), envir=environment(Deriv))
 
    assign("+", `Simplify.+`, envir=simplifications)
    assign("-", `Simplify.-`, envir=simplifications)
@@ -314,7 +317,7 @@ Deriv.ifelse <- function(f, x, env)
    assign("c", `Simplify.c`, envir=simplifications)
    assign("^", `Simplify.^`, envir=simplifications)
 
-   assign("derivatives", new.env(), envir=globalenv())
+   assign("derivatives", new.env(), envir=environment(Deriv))
 
    assign("+", `Deriv.+`, envir=derivatives)
    assign("-", `Deriv.-`, envir=derivatives)

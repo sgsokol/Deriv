@@ -2,6 +2,8 @@
 \name{Deriv}
 \alias{Deriv}
 \alias{Deriv.function}
+\alias{derivatives}
+\alias{simplifications}
 \title{Symbollic differentiation of an expression or function}
 \usage{
 Deriv(f, x, env = parent.frame())
@@ -65,6 +67,9 @@ We would have to add extra metadata to do this.  Bottom line: can compute
 gradients but not Jacobians or Hessians.
  \item Gives useless error messages when it gets stuck.  This could be fixed.
 }
+Two working environments derivatives and simplifications are created in the package
+namescape. As their names indicates, they contain tables of derivatives and
+simplification rules. A priori, user does not had to manipulate them directly.
 }
 \examples{
 \dontrun{f <- function(x) x^2}

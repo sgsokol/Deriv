@@ -1,1 +1,1 @@
-export(Deriv, Deriv.function)
+export(Deriv, Deriv.function, derivatives, simplifications)
