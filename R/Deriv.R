@@ -1,10 +1,10 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
-#' \usage{
-#' Deriv.function(f, x = names(formals(f)), env = environment(f))
-#' }
 #' @aliases Deriv.function Deriv
 #' @concept symbollic derivation
+# \usage{
+# Deriv.function(f, x = names(formals(f)), env = environment(f))
+# }
 #' 
 #' 
 #' @param f An expression or function to be differentiated

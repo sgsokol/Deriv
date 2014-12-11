@@ -2,30 +2,28 @@
 \name{Deriv}
 \alias{Deriv}
 \alias{Deriv.function}
-\title{Symbollic differentiation of an expression or function
-\usage{
-Deriv.function(f, x = names(formals(f)), env = environment(f))
-}}
+\title{Symbollic differentiation of an expression or function}
 \usage{
 Deriv(f, x, env = parent.frame())
+Deriv.function(f, x = names(formals(f)), env = environment(f))
 }
 \arguments{
-\item{f}{An R expression to be differentiated}
+\item{f}{An expression or function to be differentiated}
 
 \item{x}{A character string with variable name with resptect to which
-the expression \code{f} must be differentiated.}
+\code{f} must be differentiated. If \code{f} is function \code{x} is
+optional and defaults to \code{names(formals(f))}}
 
 \item{env}{An environment where the symbols and functions are searched for.
-Defaults to \code{parent.frame()}}
+Defaults to \code{parent.frame()} for \code{f} expression and to
+\code{environment(f)} if \code{f} is a function.}
 }
 \value{
-An R expression which represents the derivative of \code{f}.
+An expression (for \code{Deriv}) or a function (for
+ \code{Deriv.function}) with the derivative of \code{f}.
 }
 \description{
 Symbollic differentiation of an expression or function
-\usage{
-Deriv.function(f, x = names(formals(f)), env = environment(f))
-}
 }
 \details{
 R already contains two differentiation functions: D and deriv.  D does
