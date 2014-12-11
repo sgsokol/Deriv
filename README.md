@@ -12,3 +12,12 @@ In 2014, Andrew has passed the maintenance to Serguei Sokol <sokol at insa-toulo
 Installation
 ------------
 devtools::install_github("sgsokol/Deriv")
+
+Usage
+-----
+In R session do:
+> f <- function(x) x^2
+> Deriv.function(f)
+
+For more information and examples:
+> ?Deriv
