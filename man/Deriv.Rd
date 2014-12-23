@@ -69,7 +69,7 @@ gradients but not Jacobians or Hessians.
 }
 Two working environments derivatives and simplifications are created in the package
 namescape. As their names indicates, they contain tables of derivatives and
-simplification rules. A priori, user does not had to manipulate them directly.
+simplification rules. A priori, user has not to manipulate them directly.
 }
 \examples{
 \dontrun{f <- function(x) x^2}
