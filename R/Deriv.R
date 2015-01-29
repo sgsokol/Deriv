@@ -1,6 +1,6 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
-#' @aliases Deriv.function Deriv derivatives simplifications
+#' @aliases Deriv derivatives simplifications
 #' @concept symbollic derivation
 # \usage{
 # Deriv(f, x = names(formals(f)), env = environment(f))
@@ -369,6 +369,6 @@ Deriv.ifelse <- function(f, x, env)
 
    dnorm.slow <- function(x, mean, sd)
 	         1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
-   dnorm.deriv <- Deriv.function(dnorm.slow)
+   dnorm.deriv <- Deriv(dnorm.slow)
    assign("dnorm", chain.rule("dnorm.deriv", TRUE), envir=derivatives)
 }
