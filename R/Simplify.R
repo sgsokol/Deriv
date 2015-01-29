@@ -93,7 +93,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		a
 	} else if (is.numeric(a) && is.numeric(b)) {
 		a * b
-	} else if (TRUE) {
+	} else {
 #browser()
 		# get numerator and denumerator for a and b than combine them
 		nd_a=Numden(a)
@@ -140,42 +140,10 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		eprod$num=if (is.null(eprod$num)) 1 else eprod$num
 		if (is.null(eprod$den)) {
 			# we have no denominator
-			return(eprod$num)
+			eprod$num
 		} else {
-			return(call("/", eprod$num, eprod$den))
+			call("/", eprod$num, eprod$den)
 		}
-	} else if (is.numeric(b) || is.numeric(a)) {
-		# move constant ahead
-		if (is.numeric(b)) {
-			tmp <- b
-			b <- a
-			a <- tmp
-		}
-		if (is.call(b) && b[[1]] == as.symbol("*")) {
-			# check for a constant factor in the next term
-			f1 <- b[[2]]
-			f2 <- b[[3]]
-			if (is.numeric(f1)) {
-				a <- a*f1
-				if (all( a == 1)) {
-					return(f2)
-				}
-				b <- f2
-			} else if (is.numeric(f2)) {
-				a <- a*f2
-				if (all( a == 1)) {
-					return(f1)
-				}
-				b <- f1
-			}
-		}
-		expr[[2]] <- a
-		expr[[3]] <- b
-		expr
-	} else {
-		expr[[2]] <- a
-		expr[[3]] <- b
-		expr
 	}
 }
 `Simplify./` <- function(expr)
@@ -193,41 +161,8 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		a/b
 	} else if (a==1) {
 		expr
-	} else if (T) {
-		return(`Simplify.*`(call("*", a, substitute(1/b))))
-		# move constant ahead
-		inverted <- FALSE
-		if (is.numeric(b)) {
-			tmp <- b
-			b <- a
-			a <- tmp
-			inverted <- TRUE
-		}
-		if (is.call(b) && b[[1]] == as.symbol("*")) {
-			# check for a constant factor in the next term
-			f1 <- b[[2]]
-			f2 <- b[[3]]
-			if (is.numeric(f1)) {
-				a <- a/f1
-				if (all( a == 1)) {
-					return(if (!inverted) substitute(1/f2) else f2)
-				}
-				b <- f2
-			} else if (is.numeric(f2)) {
-				a <- a/f2
-				if (all( a == 1)) {
-					return(if (!inverted) substitute(1/f1) else f1)
-				}
-				b <- f1
-			}
-		}
-		expr[[2]] <- if (inverted) b else a
-		expr[[3]] <- if (inverted) a else b
-		expr
 	} else {
-		expr[[2]] <- a
-		expr[[3]] <- b
-		expr
+		`Simplify.*`(call("*", a, substitute(1/b)))
 	}
 }
 `Simplify.^` <- function(expr)
