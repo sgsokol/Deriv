@@ -7,7 +7,7 @@
 
 Simplify_ <- function(expr)
 {
-	if (is.symbol(expr)) {
+	if (is.symbol(expr) || is.numeric(expr)) {
 		expr
 	} else if (is.language(expr) && is.symbol(expr[[1]])) {
 		# is there a rule in the table?
@@ -17,6 +17,9 @@ Simplify_ <- function(expr)
 					inherits=FALSE), silent=TRUE))
 					!= "try-error")
 			return(Simplify.rule(expr))
+		else if (all(sapply(expr[-1], function(arg) is.numeric(Simplify_(arg)))))
+			return(eval(expr))
+		# if all arguments are numeric, evaluate them
 	}
 	expr
 }
@@ -34,6 +37,14 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 
 `Simplify.+` <- function(expr)
 {
+	if (length(expr) == 2)
+	{
+		if (is.numeric(expr[[2]]))
+			return(expr[[2]])
+		else {
+			return(Simplify_(expr[[2]]))
+		}
+	}
 	a <- Simplify_(expr[[2]])
 	b <- Simplify_(expr[[3]])
 
@@ -56,6 +67,9 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	{
 		if (is.numeric(expr[[2]]))
 			return(-expr[[2]])
+		if (is.call(expr[[2]]) && as.character(expr[[2]][[1]]) == "-" && length(expr[[2]]) == 2) {
+			return(Simplify_(expr[[2]][[2]]))
+		}
 		return(expr)
 	}
 
@@ -76,29 +90,33 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 }
 
 `Simplify.(` <- function(expr)
-	expr[[2]]
+	Simplify_(expr[[2]])
 
-`Simplify.*` <- function(expr)
+`Simplify.*` <- function(expr, div=FALSE)
 {
-	a <- Simplify_(expr[[2]])
-	b <- Simplify_(expr[[3]])
-
+	a <- expr[[2]]
+	b <- expr[[3]]
+#browser()
 	if (is.numeric(a) && all(a == 0)) {
 		0
-	} else if (is.numeric(b) && all(b == 0)) {
+	} else if (is.numeric(b) && all(b == 0) && !div) {
 		0
-	} else if (is.numeric(a) && all(a == 1)) {
-		b
+	} else if (is.numeric(a) && all(a == 1) && !div) {
+		Simplify_(b)
 	} else if (is.numeric(b) && all(b == 1)) {
-		a
+		Simplify_(a)
 	} else if (is.numeric(a) && is.numeric(b)) {
-		a * b
+		if (div) a/b else a * b
 	} else {
 #browser()
 		# get numerator and denumerator for a and b than combine them
-		nd_a=Numden(a)
-		nd_b=Numden(b)
-		nd=list(num=c(nd_a$num, nd_b$num), den=c(nd_a$den, nd_b$den))
+		nd_a=Numden(Simplify_(a))
+		nd_b=Numden(Simplify_(b))
+		if (div) {
+			nd=list(num=c(nd_a$num, nd_b$den), den=c(nd_a$den, nd_b$num))
+		} else {
+			nd=list(num=c(nd_a$num, nd_b$num), den=c(nd_a$den, nd_b$den))
+		}
 		# reduce numerics to only one factor
 		fa=list()
 		for (na in c("num", "den")) {
@@ -110,6 +128,14 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			}
 		}
 		fa$num=if (length(fa$num)) fa$num else 1
+		if (fa$num == 0) {
+			return(0)
+		}
+		if (as.integer(fa$num) != fa$num ||
+		   as.integer(fa$den) != fa$den) {
+			fa$num=fa$num/fa$den
+			fa$den=1
+		}
 		# simplify identical terms in num and denum
 		nd_eq=outer(sapply(nd$den, format1), sapply(nd$num, format1), `==`)
 		ipair=matrix(0, nrow=2, ncol=0)
@@ -137,33 +163,18 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 				eprod[[na]]=if (is.null(eprod[[na]])) fa[[na]] else call("*", fa[[na]], eprod[[na]])
 			}
 		}
-		eprod$num=if (is.null(eprod$num)) 1 else eprod$num
+		eprod$num=if (is.null(eprod$num)) fa$num else eprod$num
 		if (is.null(eprod$den)) {
 			# we have no denominator
-			eprod$num
+			return(eprod$num)
 		} else {
-			call("/", eprod$num, eprod$den)
+			return(call("/", eprod$num, eprod$den))
 		}
 	}
 }
 `Simplify./` <- function(expr)
 {
-	a <- Simplify_(expr[[2]])
-	b <- Simplify_(expr[[3]])
-
-	if (is.numeric(a) && all(a == 0)) {
-		0
-	} else if (is.numeric(b) && all(b == 0)) {
-		Inf
-	} else if (is.numeric(b) && all(b == 1)) {
-		a
-	} else if (is.numeric(a) && is.numeric(b)) {
-		a/b
-	} else if (a==1) {
-		expr
-	} else {
-		`Simplify.*`(call("*", a, substitute(1/b)))
-	}
+	`Simplify.*`(expr, div=TRUE)
 }
 `Simplify.^` <- function(expr)
 {
@@ -181,6 +192,26 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	} else if (is.numeric(a) && is.numeric(b)) {
 		a ^ b
 	} else {
+		if (is.call(a)) {
+			if (as.character(a[[1]]) == "^") {
+				# product of exponents
+				b <- Simplify_(call("*", a[[3]], b))
+				a <- a[[2]]
+			} else if (as.character(a[[1]]) == "sqrt") {
+				# divide by 2
+				b <- Simplify_(call("/", b, 2))
+				a <- a[[2]]
+			}
+		}
+		if (is.numeric(b)) {
+			if (all(b == 1)) {
+				return(a)
+			} else if (all(b == 0.5)) {
+				return(substitute(sqrt(a)))
+			} else if (all(b == -0.5)) {
+				return(substitute(1/sqrt(a)))
+			}
+		}
 		expr[[2]] <- a
 		expr[[3]] <- b
 		expr
