@@ -5,8 +5,9 @@ Version: 1.1
 Date: 2015-01-28
 Author: Andrew Clausen
 Maintainer: Serguei Sokol <sokol@insa-toulouse.fr>
-Description: Compared to R functions deriv() and D(), Deriv() admits user-defined
-    function for derivation as well as function substitution in arguments of
-    functions to be derived.
+Description: Compared to R functions deriv() and D(), Deriv() admits
+    user-defined function for derivation as well as function substitution in
+    arguments of functions to be derived.
 License: GPL (>=3)
-Suggests: testthat
+Suggests:
+    testthat
