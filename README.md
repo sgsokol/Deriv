@@ -18,7 +18,7 @@ Usage
 In R session do:
 > f <- function(x) x^2
 
-> Deriv.function(f)
+> Deriv.(f)
 
 For more information and examples:
 > ?Deriv
