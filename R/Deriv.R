@@ -328,6 +328,9 @@ Deriv.ifelse <- function(f, x, env)
 	f[[4]] <- Deriv_(f[[4]], x, env)
 	f
 }
+dnorm.slow <- function(x, mean, sd)
+	         1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
+dnorm.deriv <- Deriv(dnorm.slow)
 
 .onLoad <- function(libname, pkgname) {
    assign("simplifications", new.env(), envir=environment(Deriv))
@@ -366,9 +369,5 @@ Deriv.ifelse <- function(f, x, env)
    assign("sum", Deriv.sum, envir=derivatives)
    assign("sqrt", chain.rule("sqrt.deriv"), envir=derivatives)
    assign("ifelse", Deriv.ifelse, envir=derivatives)
-
-   dnorm.slow <- function(x, mean, sd)
-	         1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
-   dnorm.deriv <- Deriv(dnorm.slow)
    assign("dnorm", chain.rule("dnorm.deriv", TRUE), envir=derivatives)
 }
