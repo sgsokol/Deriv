@@ -329,8 +329,12 @@ Deriv.ifelse <- function(f, x, env)
 	f
 }
 dnorm.slow <- function(x, mean, sd)
-	         1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
-dnorm.deriv <- Deriv(dnorm.slow, "x")
+	1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
+dnorm.deriv <- function(x, mean, sd) {
+	f <- function(x, mean, sd){}
+	body(f) <- Deriv_(body(dnorm.slow), "x")
+	return(f)
+}
 
 .onLoad <- function(libname, pkgname) {
    assign("simplifications", new.env(), envir=environment(Deriv))
