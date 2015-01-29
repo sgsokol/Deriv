@@ -1,10 +1,20 @@
-Version 1.0
+Version 1.1
 ===========
 
-* 2007 Andrew Clausen has written an original code Deriv.R and Simplify.R
- distributed on his site https://andrewclausen.net/computing/deriv.html
+* 2015-01-29
+ - Deriv() is now the only entry point for all expressions to derive. No more need for Deriv.function() which is suppressed
+ - In addition to previously possible derivation of functions and expressions, the argument to derive can be submitted as
+  * character string, e.g. '"x**2"'
+  * right hand side of a formula, e.g '~ x**2'
+  * quote() call, e.g 'quote(x**2)'
+ - Power expression is allowed to have symbolic power, e.g. 'x**n' or 'x^n'
+ - Simplifications are pushed further for rational expressions (i.e. having terms united by '*' and/or '/'), all numeric terms are explicitly calculated and identical terms in numerator and denominator are simplified
+ - auxiliary functions like neg.sin() or reciprocal() are replaced by their explicit counterparts in the final result
+ - added tan() to the table of derivable functions
+ - some unit tests are added for Deriv() and Simplfy()(based on testthat package)
 
-* 2009-2-21 Mark Reid's patch
+Version 1.0
+===========
 
 * 2014-12-10
  - Andrew Clausen passed the maintenance to Serguei Sokol
@@ -12,3 +22,8 @@ Version 1.0
  - revamped the documentation and code as an R package
  - put the code to GitHub https://github.com/sgsokol/Deriv
  - submitted the package to CRAN
+
+* 2009-2-21 Mark Reid's patch
+
+* 2007 Andrew Clausen has written an original code Deriv.R and Simplify.R
+ distributed on his site https://andrewclausen.net/computing/deriv.html

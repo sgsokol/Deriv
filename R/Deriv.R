@@ -3,19 +3,30 @@
 #' @aliases Deriv.function Deriv derivatives simplifications
 #' @concept symbollic derivation
 # \usage{
-# Deriv.function(f, x = names(formals(f)), env = environment(f))
+# Deriv(f, x = names(formals(f)), env = environment(f))
 # }
 #' 
 #' 
-#' @param f An expression or function to be differentiated
-#' @param x A character string with variable name with resptect to which
-#'  \code{f} must be differentiated. If \code{f} is function \code{x} is
+#' @param f An expression or function to be differentiated.
+#'  f can be \itemize{
+#'   \item a user defined function \code{function(x) x**n}
+#'   \item a string \code{"x**n"}
+#'   \item an expression \code{expression(x**n)}
+#'   \item a call \code{call("^", quote(x), quote(n))}
+#'   \item a language \code{quote(x**n)}
+#'   \item a right hand side of a formula \code{~ x**n} or \code{y ~ x**n}
+#'  }
+#' @param x A character string with variable name(s) with resptect to which
+#'  \code{f} must be differentiated. If \code{f} is a function \code{x} is
 #'  optional and defaults to \code{names(formals(f))}
 #' @param env An environment where the symbols and functions are searched for.
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
 #'  \code{environment(f)} if \code{f} is a function.
-#' @return An expression (for \code{Deriv}) or a function (for
-#'  \code{Deriv.function}) with the derivative of \code{f}.
+#' @return \itemize{
+#'  \item a function if \code{f} is a function
+#'  \item an expression if \code{f} is an expression
+#'  \item a language (usually a so called 'call' but may be also a symbol or just a numeric) for other types of \code{f}
+#' }
 #'
 #' @details
 #' R already contains two differentiation functions: D and deriv.  D does
@@ -75,44 +86,52 @@
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}
-#' \dontrun{Deriv.function(f)}
+#' \dontrun{Deriv(f)}
 #' # function (x) 
 #' # 2 * x
 #'
 #' \dontrun{f <- function(x, y) sin(x) * cos(y)}
-#' \dontrun{Deriv.function(f)}
+#' \dontrun{Deriv(f)}
 #' # function (x, y) 
-#' # sin(x) * (sin(y) * c(0, 1)) + cos(y) * (cos(x) * c(1, 0))
+#' # sin(x) * -sin(y) * t(c(0, 1)) + cos(x) * t(c(1, 0)) *  cos(y)
 #'
-#' \dontrun{f_ <- Deriv.function(f)}
+#' \dontrun{f_ <- Deriv(f)}
 #' \dontrun{f_(3, 4)}
 #' #              x         y
-#' # [1,] 0.6471023 0.1068000
+#' # [1,] 0.6471023 0.1068
 #
-#' \dontrun{Deriv(expression(f(x, y^2)), "y")}
-#' # expression(sin(x) * (neg.sin(y^2) * (2 * y)))
+#' \dontrun{Deriv(~ f(x, y^2)), "y")}
+#' # 2 * (sin(x) * -sin(y^2) * y)
 #'
-#' \dontrun{Deriv(expression(f(x, y^2)), c("x", "y"))}
-#' # expression(sin(x) * (neg.sin(y^2) * (2 * (y * t(c(0, 1))))) + 
-#' #     cos(x) * t(c(1, 0)) * cos(y^2))
+#' \dontrun{Deriv(quote(f(x, y^2)), c("x", "y"))}
+#' # 2 * (sin(x) * -sin(y^2) * y * t(c(0, 1))) + cos(x) * 
+#' #     t(c(1, 0)) * cos(y^2))
 #'
 #' \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 #' # expression(cos(x^2) * (2 * x) * y)
 
 # This wrapper of Deriv_ returns an expression (wrapped up "properly")
-Deriv <- function(f, x, env=parent.frame())
-	as.expression(Deriv_(f[[1]], x, env))
-
-# This wrapper of Deriv_ takes a function rather than an expression.
-# By default, it automatically figures out which variables to differentiate
-# with respect to (all of them).  It returns an executable function.
-
-Deriv.function <- function(f, x=names(formals(f)), env=environment(f))
-{
-	stopifnot(is.function(f))
-	as.function(c(as.list(formals(f)),
-			      Deriv_(body(f), x, env)),
-		    envir=env)
+# or call or function depending on type of 'f'
+Deriv <- function(f, x=if (length(find(deparse(substitute(f)))) && is.function(f)) names(formals(f)) else stop("Argument 'f' is not a function, so variable name(s) must be supplied in 'x' argument"), env=if (is.function(f)) environment(f) else parent.frame()) {
+	x # referense x here for a possible error message
+	if (is.character(f)) {
+		# f is to parse
+		Deriv(parse(t=f), x, env)
+	} else if (is.function(f)) {
+		as.function(c(as.list(formals(f)), Deriv_(body(f), x, env)),  envir=env)
+	} else if (is.expression(f)) {
+		as.expression(Deriv_(f[[1]], x, env))
+	} else if (is.language(f)) {
+		if (is.call(f) && f[[1]] == as.symbol("~")) {
+			# rhs of a formula
+			Deriv_(f[[length(f)]], x, env)
+		} else {
+			# plain call derivation
+			Deriv_(f, x, env)
+		}
+	} else {
+		stop("Unrecognized type of 'f' for derivation")
+	}
 }
 
 # This is the main function.  It takes an expression (with the first layer
@@ -155,6 +174,9 @@ Deriv_ <- function(f, x, env)
 			sym <- get(sym.name, envir=env)
 			stopifnot(is.function(sym))
 			args <- formals(sym)
+			if (is.null(args)) {
+				stop(sprintf("Could not retrieve arguments of '%s()'", sym.name))
+			}
 			for (arg in 1:length(args))
 				args[[arg]] <- f[[1 + arg]]
 			subst.fun <- eval(call("substitute", body(sym), args))
@@ -227,17 +249,16 @@ reciprocal.deriv <- function(x) -1/x^2
 `Deriv.(` <- function(f, x, env)
 	Deriv_(f[[2]], x, env)
 
-# FIXME: only works if the exponent is a constant.
 `Deriv.^` <- function(f, x, env)
 {
-	stopifnot(is.numeric(f[[3]]))
 	b <- f[[3]]
-	if (b == 0) {
+	if (is.numeric(b) && b == 0) {
 		0
 	} else {
+		b=Simplify_(b)
 		`expr.*`(
 			b,
-			`expr.*`(`expr.^`(f[[2]], b - 1),
+			`expr.*`(`expr.^`(f[[2]], substitute(b - 1)),
 				 Deriv_(f[[2]], x, env)))
 	}
 }
@@ -297,6 +318,7 @@ Deriv.sum <- function(f, x, env)
 }
 
 sqrt.deriv <- function(x) 1/(2*sqrt(x))
+tan.deriv <- function(x) 1/cos(x)**2
 
 neg.sin <- function(x) -sin(x)
 
@@ -313,9 +335,15 @@ Deriv.ifelse <- function(f, x, env)
    assign("+", `Simplify.+`, envir=simplifications)
    assign("-", `Simplify.-`, envir=simplifications)
    assign("*", `Simplify.*`, envir=simplifications)
+   assign("/", `Simplify./`, envir=simplifications)
    assign("(", `Simplify.(`, envir=simplifications)
    assign("c", `Simplify.c`, envir=simplifications)
    assign("^", `Simplify.^`, envir=simplifications)
+   assign("reciprocal", `Simplify.reciprocal`, envir=simplifications)
+   assign("neg.sin", `Simplify.neg.sin`, envir=simplifications)
+   assign("reciprocal.deriv", `Simplify.reciprocal.deriv`, envir=simplifications)
+   assign("sqrt.deriv", `Simplify.sqrt.deriv`, envir=simplifications)
+   assign("tan.deriv", `Simplify.tan.deriv`, envir=simplifications)
 
    assign("derivatives", new.env(), envir=environment(Deriv))
 
@@ -331,6 +359,7 @@ Deriv.ifelse <- function(f, x, env)
    #assign("t", Deriv.t, envir=derivatives)
    assign("sin", chain.rule("cos"), envir=derivatives)
    assign("cos", chain.rule("neg.sin"), envir=derivatives)
+   assign("tan", chain.rule("tan.deriv"), envir=derivatives)
    assign("exp", chain.rule("exp"), envir=derivatives)
    assign("log", chain.rule("reciprocal"), envir=derivatives)
    assign("length", Deriv.constant, envir=derivatives)
