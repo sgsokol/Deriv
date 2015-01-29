@@ -185,6 +185,25 @@ Deriv_ <- function(f, x, env)
 	}
 }
 
+# Wrapper for derst(). Can get unknown functions (substitute body) and
+# differentiate by many variables. In the latter case a named vector is returned
+# (i.e. the gradient vector expression)
+mderst <- function(f, x, env) {
+	if (is.numeric(f)) {
+		result <- numeric(length(x))
+		names(result) <- x
+		return(result)
+	}
+	if (length(x) > 1) {
+		# many variables
+		res <- lapply(x, function(xi) derst(st, xi))
+		return(as.call(c(as.symbol("c"), res)))
+	} else {
+		# only one variable to differentiate by
+		return(derst(st, xi))
+	}
+}
+
 subop <- function(expr) function(a, b)
 {
 	expr[[1]][[2]] <- a
@@ -336,8 +355,105 @@ dnorm.deriv <- function(x, mean, sd) {
 	return(f)
 }
 
+repl_ab <- function(st, lrepl) {
+	# In a statement st, replace symbols a, d_a etc by the content
+	# the correponding item in the list lrepl
+	if (is.numeric(st)) {
+		return(st)
+	} else if (is.symbol(st)) {
+		stch <- as.character(st)
+		repl <- lrepl[[stch]]
+		return(if (is.null(repl)) st else repl)
+	} else if (is.call(st)) {
+		# recursive call
+		for (i in 2:length(st)) {
+			# replace a,b, in all arguments
+			st[[i]] <- repl_ab(st[[i]], lrepl)
+		}
+		return(st)
+	}
+}
+derst <- function(st, x, env) {
+	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
+	if (is.numeric(st)) {
+		return(0)
+	} else if (is.symbol(st)) {
+		if (as.character(st) == x) {
+			return(1)
+		} else {
+			return(0)
+		}
+	} else if (is.call(st)) {
+		stch <- as.character(st[[1]])
+		# prepare expression to differentiate
+		if (is.null(drule[[stch]])) {
+			# no known rule for that function
+			# differentiate its body if can get it
+			ff <- get(stch, envir=env, mode="function")
+			args <- st[-1]
+			names(args)=names(formals(ff))
+			if (is.null(names(args))) {
+				stop(sprintf("Could not retrieve arguments of '%s()'", stch))
+			}
+			st <- eval(call("substitute", body(ff), args))
+		}
+		nb_args=length(st)-1
+		if (is.null(drule[[stch]][[nb_args]])) {
+			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
+		}
+		lrepl=list(
+			a=st[[2]],
+			d_a=derst(st[[2]], x, env)
+		)
+		if (nb_args == 2) {
+			lrepl$b <- st[[3]]
+			lrepl$d_b <- derst(st[[3]], x, env)
+		}
+		
+		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], lrepl))))
+	} else {
+		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
+	}
+}
+
 .onLoad <- function(libname, pkgname) {
    assign("simplifications", new.env(), envir=environment(Deriv))
+   assign("derivatives", new.env(), envir=environment(Deriv))
+   assign("drule", new.env(), envir=environment(Deriv))
+   
+   # arithmetic rules
+   # first item in the list correspond to a call with one argument
+   # second (if any) for two. NULL means that with this number of argument
+   # a function can not be called
+   drule[["+"]] <- list(quote(d_a), quote(d_a+d_b)) # +a, a+b
+   drule[["-"]] <- list(quote(-d_a), quote(d_a-d_b)) # -a, a-b
+   drule[["*"]] <- list(NULL, quote(d_a*b+a*d_b)) # a*b
+   drule[["/"]] <- list(NULL, quote((d_a*b-a*d_b)/b^2)) # a*b
+   # power functions
+   drule[["^"]] <- list(NULL, quote(d_a*b*a^(b-1)+d_b*log(a)*a^b)) # a^b
+   # example of recursive call
+   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("a"), 0.5), "a")) # sqrt(a)
+   # but we prefer a sqrt() formula
+   drule[["sqrt"]] <- list(quote(0.5*d_a/sqrt(a)))
+   drule[["log"]] <- list(quote(d_a/a), quote(d_a/(a*log(b)))) # log(a), log(a, b)
+   drule[["logb"]] <- drule[["log"]]
+   drule[["log2"]] <- list(quote(d_a/(a*log(2))))
+   drule[["log10"]] <- list(quote(d_a/(a*log(10))))
+   drule[["exp"]] <- list(quote(d_a*exp(a)))
+   # trigonometric
+   drule[["sin"]] <- list(quote(d_a*cos(a)))
+   drule[["cos"]] <- list(quote(-d_a*sin(a)))
+   drule[["tan"]] <- list(quote(d_a/cos(a)^2))
+   drule[["asin"]] <- list(quote(d_a/sqrt(1-a^2)))
+   drule[["acos"]] <- list(quote(-d_a/sqrt(1-a^2)))
+   drule[["atan"]] <- list(quote(d_a/(1+a^2)))
+   # hyperbolic
+   drule[["sinh"]] <- list(quote(d_a*cosh(a)))
+   drule[["cosh"]] <- list(quote(d_a*sinh(a)))
+   drule[["tanh"]] <- list(quote(d_a*(1-tanh(a)^2)))
+   drule[["asinh"]] <- list(quote(d_a/sqrt(a^2+1)))
+   drule[["acosh"]] <- list(quote(d_a/sqrt(a^2-1)))
+   drule[["atanh"]] <- list(quote(d_a/(1-a^2)))
 
    assign("+", `Simplify.+`, envir=simplifications)
    assign("-", `Simplify.-`, envir=simplifications)
@@ -351,8 +467,6 @@ dnorm.deriv <- function(x, mean, sd) {
    assign("reciprocal.deriv", `Simplify.reciprocal.deriv`, envir=simplifications)
    assign("sqrt.deriv", `Simplify.sqrt.deriv`, envir=simplifications)
    assign("tan.deriv", `Simplify.tan.deriv`, envir=simplifications)
-
-   assign("derivatives", new.env(), envir=environment(Deriv))
 
    assign("+", `Deriv.+`, envir=derivatives)
    assign("-", `Deriv.-`, envir=derivatives)
