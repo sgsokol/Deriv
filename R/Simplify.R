@@ -67,8 +67,10 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	{
 		if (is.numeric(expr[[2]]))
 			return(-expr[[2]])
-		if (is.call(expr[[2]]) && as.character(expr[[2]][[1]]) == "-" && length(expr[[2]]) == 2) {
+		if (is.uminus(expr[[2]])) {
 			return(Simplify_(expr[[2]][[2]]))
+		} else if (is.uplus(expr[[2]])) {
+			return(Simplify_(substitute(-expr[[2]][[2]])))
 		}
 		return(expr)
 	}
@@ -96,46 +98,60 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 {
 	a <- expr[[2]]
 	b <- expr[[3]]
+	if (is.uminus(a)) {
+		sminus <- TRUE
+		a <- a[[2]]
+	} else {
+		sminus <- FALSE
+	}
+	if (is.uminus(b)) {
+		sminus <- !sminus
+		b <- b[[2]]
+	}
 #browser()
-	if (is.numeric(a) && all(a == 0)) {
+	if (is.numeric(a) && a == 0) {
 		0
-	} else if (is.numeric(b) && all(b == 0) && !div) {
+	} else if (is.numeric(b) && b == 0 && !div) {
 		0
-	} else if (is.numeric(a) && all(a == 1) && !div) {
-		Simplify_(b)
-	} else if (is.numeric(b) && all(b == 1)) {
-		Simplify_(a)
+	} else if (is.numeric(a) && a == 1 && !div) {
+		if (sminus) Simplify_(substitute(-b)) else Simplify_(b)
+	} else if (is.numeric(b) && b == 1) {
+		if (sminus) Simplify_(substitute(-a)) else Simplify_(a)
 	} else if (is.numeric(a) && is.numeric(b)) {
-		if (div) a/b else a * b
+		res <- if (div) a/b else a * b
+		if (sminus) -res else res
 	} else {
 #browser()
-		# get numerator and denumerator for a and b than combine them
-		nd_a=Numden(Simplify_(a))
-		nd_b=Numden(Simplify_(b))
+		# get numerator and denominator for a and b than combine them
+		nd_a <- Numden(Simplify_(a))
+		nd_b <- Numden(Simplify_(b))
 		if (div) {
-			nd=list(num=c(nd_a$num, nd_b$den), den=c(nd_a$den, nd_b$num))
+			nd <- list(num=c(nd_a$num, nd_b$den), den=c(nd_a$den, nd_b$num))
 		} else {
-			nd=list(num=c(nd_a$num, nd_b$num), den=c(nd_a$den, nd_b$den))
+			nd <- list(num=c(nd_a$num, nd_b$num), den=c(nd_a$den, nd_b$den))
 		}
 		# reduce numerics to only one factor
 		fa=list()
 		for (na in c("num", "den")) {
-			inu=which(sapply(nd[[na]], is.numeric))
+			inu=if (length(nd[[na]])) which(sapply(nd[[na]], is.numeric)) else integer(0)
 			if (length(inu)) {
-				fa[[na]]=prod(unlist(nd[[na]][inu]))
+				fa[[na]] <- prod(unlist(nd[[na]][inu]))
 				# remove numerics
-				nd[[na]]=nd[[na]][-inu]
+				nd[[na]] <- nd[[na]][-inu]
+			} else {
+				fa[[na]] <- 1
 			}
 		}
-		fa$num=if (length(fa$num)) fa$num else 1
 		if (fa$num == 0) {
 			return(0)
 		}
-		if (as.integer(fa$num) != fa$num ||
-		   as.integer(fa$den) != fa$den) {
-			fa$num=fa$num/fa$den
-			fa$den=1
+		if ((as.integer(fa$num) != fa$num ||
+		   as.integer(fa$den) != fa$den) ||
+		   fa$num == fa$den || fa$num == -fa$den) {
+			fa$num <- fa$num/fa$den
+			fa$den <- 1
 		}
+		fa$num=if (sminus) -fa$num else fa$num
 		# simplify identical terms in num and denum
 		nd_eq=outer(sapply(nd$den, format1), sapply(nd$num, format1), `==`)
 		ipair=matrix(0, nrow=2, ncol=0)
@@ -154,13 +170,13 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		# form symbolic products
 		eprod=list()
 		for (na in c("num", "den")) {
-			if (length(nd[[na]]) == 0) next
-			eprod[[na]]=nd[[na]][[1]]
+			if (length(nd[[na]]) == 0 && fa[[na]] == 1) next
+			eprod[[na]]=if (length(nd[[na]])) nd[[na]][[1]] else fa[[na]]
 			for (term in nd[[na]][-1]) {
-				eprod[[na]]=call("*", eprod[[na]], term)
+				eprod[[na]] <- call("*", eprod[[na]], term)
 			}
-			if (fa[[na]] != 1) {
-				eprod[[na]]=if (is.null(eprod[[na]])) fa[[na]] else call("*", fa[[na]], eprod[[na]])
+			if (length(nd[[na]]) && fa[[na]] != 1) {
+				eprod[[na]] <- if (fa[[na]] == -1) call("-", eprod[[na]]) else call("*", fa[[na]], eprod[[na]])
 			}
 		}
 		eprod$num=if (is.null(eprod$num)) fa$num else eprod$num
@@ -218,68 +234,21 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	}
 }
 
-`Simplify.c` <- function(expr)
-{
-	args <- expr[-1]
-	args.simplified <- lapply(args, Simplify_)
-	if (all(lapply(args.simplified, is.numeric))) {
-		as.numeric(args.simplified)
-	} else {
-		for (i in 1:length(args))
-			expr[[i + 1]] <- args.simplified[[i]]
-		expr
-	}
-}
-`Simplify.reciprocal` <- function(expr)
-{
-	a <- Simplify_(expr[[2]])
-	if (is.numeric(a)) {
-		1/a
-	} else {
-		substitute(1/a)
-	}
-}
-`Simplify.neg.sin` <- function(expr)
-{
-	a <- Simplify_(expr[[2]])
-	if (is.numeric(a)) {
-		-sin(a)
-	} else {
-		substitute(-sin(a))
-	}
-}
-`Simplify.reciprocal.deriv` <- function(expr)
-{
-	a <- Simplify_(expr[[2]])
-	if (is.numeric(a)) {
-		-1/(a*a)
-	} else {
-		substitute(-1/(a*a))
-	}
-}
-`Simplify.sqrt.deriv` <- function(expr)
-{
-	a <- Simplify_(expr[[2]])
-	if (is.numeric(a)) {
-		0.5/sqrt(a)
-	} else {
-		substitute(0.5/sqrt(a))
-	}
-}
-`Simplify.tan.deriv` <- function(expr)
-{
-	a <- Simplify_(expr[[2]])
-	if (is.numeric(a)) {
-		1/cos(a)**2
-	} else {
-		substitute(1/cos(a)**2)
-	}
-}
 Numden <- function(expr) {
-	# Return a list with "num" as numerator and and "den" as denominator sublists.
+	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# Each sublist regroups the language expressions which are not products neither
 	# divisions
-	if (is.numeric(expr) || is.symbol(expr)) {
+	if (is.uminus(expr)) {
+		if (is.numeric(expr[[2]])) {
+			list(num=list(-expr[[2]]))
+		} else {
+			a=Numden(expr[[2]])
+			a$num=c(-1, a$num)
+			a
+		}
+	} else if (is.uplus(expr)) {
+		Numden(expr[[2]])
+	} else if (is.symbol(expr) || is.numeric(expr)) {
 		list(num=list(expr), den=list(1))
 	} else if (expr[[1]] == as.symbol("*")) {
 		# recursive call
@@ -292,7 +261,7 @@ Numden <- function(expr) {
 		b=Numden(expr[[3]])
 		list(num=c(a$num, b$den), den=c(a$den, b$num))
 	} else {
-		list(num=list(expr), den=list(1))
+		list(num=list(expr))
 	}
 }
 format1 <- function(expr) {
@@ -301,4 +270,12 @@ format1 <- function(expr) {
 		res=paste(res, collapse="")
 	}
 	return(res)
+}
+is.uminus <- function(e) {
+	# detect if e is unitary minus, e.g. "-a"
+	return(is.call(e) && length(e) == 2 && e[[1]] == as.symbol("-"))
+}
+is.uplus <- function(e) {
+	# detect if e is unitary plus, e.g. "+a"
+	return(is.call(e) && length(e) == 2 && e[[1]] == as.symbol("+"))
 }
