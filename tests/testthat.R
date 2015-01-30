@@ -1,7 +1,7 @@
 library(testthat)
 library(Deriv)
 
-test_check("Deriv")
+#test_check("Deriv")
 context("Symbolic derivation rules")
 f=function(x) {}
 
@@ -28,8 +28,9 @@ expect_equal_deriv=function(t, r) {
    eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
 }
 test_that("elementary derivations", {
-   expect_equal(Deriv("x", "x")[[1]], 1)
-   expect_equal(Deriv(quote(x), "x"), c(x=1))
+   expect_equal(Deriv("x", "x"), "1")
+   expect_equal(Deriv(quote(x), "x"), 1)
+   expect_equal(Deriv(quote((x)), "x"), 1)
    expect_equal_deriv(x**2, 2*x)
    expect_equal_deriv(x**n, n*x^(n-1))
    expect_equal_deriv(sin(x), cos(x))
