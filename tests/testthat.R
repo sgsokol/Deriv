@@ -7,24 +7,28 @@ f=function(x) {}
 
 expect_equal_deriv=function(t, r) {
    test=substitute(t)
-   right=substitute(r)
+   ref=substitute(r)
    # compare as language
    ans=Deriv(test, "x")
    #print(deparse(ans))
-   eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(right))))))
+   eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(ref))))))
+   # compare as string
+   ans=Deriv(format1(test), "x")
+   #print(ans)
+   eval(bquote(expect_equal(.(ans), format1(quote(.(ref))))))
    # compare as formula
    ans=Deriv(call("~", test), "x")
    #print(deparse(ans))
-   eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(right))))))
+   eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(ref))))))
    # compare as expression
    ans=Deriv(as.expression(test), "x")
    #print(deparse(ans))
-   eval(bquote(expect_equal(format1(.(ans)), format1(expression(.(right))))))
+   eval(bquote(expect_equal(format1(.(ans)), format1(expression(.(ref))))))
    # compare as function
    body(f)=test
    ans=Deriv(f, "x")
    #print(deparse(ans))
-   body(f)=right
+   body(f)=ref
    eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
 }
 test_that("elementary derivations", {
