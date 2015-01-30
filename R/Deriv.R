@@ -116,72 +116,21 @@ Deriv <- function(f, x=if (length(find(deparse(substitute(f)))) && is.function(f
 	x # referense x here for a possible error message
 	if (is.character(f)) {
 		# f is to parse
-		Deriv(parse(t=f), x, env)
+		format1(mderst(parse(t=f)[[1]], x, env))
 	} else if (is.function(f)) {
-		as.function(c(as.list(formals(f)), Deriv_(body(f), x, env)),  envir=env)
+		as.function(c(formals(f), mderst(body(f), x, env)), envir=env)
 	} else if (is.expression(f)) {
-		as.expression(Deriv_(f[[1]], x, env))
+		as.expression(mderst(f[[1]], x, env))
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
-			# rhs of a formula
-			Deriv_(f[[length(f)]], x, env)
+			# rhs of the formula
+			mderst(f[[length(f)]], x, env)
 		} else {
 			# plain call derivation
-			Deriv_(f, x, env)
+			mderst(f, x, env)
 		}
 	} else {
-		stop("Unrecognized type of 'f' for derivation")
-	}
-}
-
-# This is the main function.  It takes an expression (with the first layer
-# stripped -- I don't know the terminology) f as an argument, and
-# differentiates with respect to the variables listed in x.  The environment
-# parameter, env specifies where to search for functions invoked in the
-# expression
-
-Deriv_ <- function(f, x, env)
-{
-	if (is.numeric(f)) {
-		result <- numeric(length(x))
-		names(result) <- x
-		result
-	} else if (is.symbol(f)) {
-		# if f is the x in "2x + 3", and we're differentiating with
-		# respect to x only, then the derivative of the "x" bit is
-		# just "1".  If we're differentiating wrt "y", then it is 0.
-		# If we're differentiating with respect to both "x" and "y",
-		# then it is t(c(1, 0)).
-		vector <- mapply(function(var) 1 * (as.character(f) == var), x)
-		if (length(x) == 1) {
-			vector
-		} else {
-			result <- expression(t(x))[[1]]
-			result[[2]] <- vector
-			result
-		}
-	} else if (is.language(f) && is.symbol(f[[1]]) ) {
-		# is there a rule in the table?
-		sym.name <- as.character(f[[1]])
-		if (class(try(Deriv.rule <- get(sym.name, envir=derivatives,
-						inherits=FALSE), silent=TRUE))
-				!= "try-error") {
-			# There is a rule... apply it.
-			Simplify_(Deriv.rule(f, x, env))
-		} else {
-			# There is no rule... substitute the function in,
-			# and differentiate the result.
-			sym <- get(sym.name, envir=env)
-			stopifnot(is.function(sym))
-			args <- formals(sym)
-			if (is.null(args)) {
-				stop(sprintf("Could not retrieve arguments of '%s()'", sym.name))
-			}
-			for (arg in 1:length(args))
-				args[[arg]] <- f[[1 + arg]]
-			subst.fun <- eval(call("substitute", body(sym), args))
-			Simplify_(Deriv_(subst.fun, x, env))
-		}
+		stop("Invalid type of 'f' for differentiation")
 	}
 }
 
@@ -191,155 +140,20 @@ Deriv_ <- function(f, x, env)
 mderst <- function(f, x, env) {
 	if (is.numeric(f)) {
 		result <- numeric(length(x))
-		names(result) <- x
+		if (length(x) > 1) {
+			names(result) <- x
+		}
 		return(result)
 	}
 	if (length(x) > 1) {
 		# many variables
-		res <- lapply(x, function(xi) derst(st, xi))
+		res <- lapply(x, function(xi) derst(f, xi, env))
 		return(as.call(c(as.symbol("c"), res)))
 	} else {
 		# only one variable to differentiate by
-		return(derst(st, xi))
+		return(derst(f, x, env))
 	}
 }
-
-subop <- function(expr) function(a, b)
-{
-	expr[[1]][[2]] <- a
-	expr[[1]][[3]] <- b
-	expr[[1]]
-}
-
-`expr.+` <- subop(expression(a + b))
-`expr.-` <- subop(expression(a - b))
-`expr.*` <- subop(expression(a * b))
-`expr.%*%` <- subop(expression(a %*% b))
-`expr.^` <- subop(expression(a ^ b))
-
-Deriv.constant <- function(f, x, env)
-	0
-
-`Deriv.+` <- function(f, x, env)
-	`expr.+`(Deriv_(f[[2]], x, env), Deriv_(f[[3]], x, env))
-
-`Deriv.-` <- function(f, x, env)
-{
-	if(length(f) == 3) {
-		`expr.-`(Deriv_(f[[2]], x, env), Deriv_(f[[3]], x, env))
-	} else {
-		result <- expression(-a)[[1]]
-		result[[2]] <- Deriv_(f[[2]], x, env)
-		result
-	}
-}
-
-# FIXME: don't know when both arguments (or their derivatives) are vectors
-`Deriv.*` <- function(f, x, env)
-	`expr.+`(
-		`expr.*`(f[[2]], Deriv_(f[[3]], x, env)),
-		`expr.*`(Deriv_(f[[2]], x, env), f[[3]]))
-
-`Deriv.%*%` <- function(f, x, env)
-	`expr.+`(
-		`expr.%*%`(f[[2]], Deriv_(f[[3]], x, env)),
-		`expr.%*%`(Deriv_(f[[2]], x, env), f[[3]]))
-
-
-`Deriv./` <- function(f, x, env)
-{
-	expr <- expression(u * reciprocal(v))[[1]]
-	expr[[2]] <- f[[2]]
-	expr[[3]][[2]] <- f[[3]]
-	`Deriv.*`(expr, x, env)
-}
-
-reciprocal <- function(x)
-{
-	if (is.matrix(x)) {
-		solve(x)
-	} else {
-		1/x
-	}
-}
-
-reciprocal.deriv <- function(x) -1/x^2
-
-`Deriv.(` <- function(f, x, env)
-	Deriv_(f[[2]], x, env)
-
-`Deriv.^` <- function(f, x, env)
-{
-	b <- f[[3]]
-	if (is.numeric(b) && b == 0) {
-		0
-	} else {
-		b=Simplify_(b)
-		`expr.*`(
-			b,
-			`expr.*`(`expr.^`(f[[2]], substitute(b - 1)),
-				 Deriv_(f[[2]], x, env)))
-	}
-}
-
-do.rbind <- function(rows)
-{
-	n <- length(rows)
-	result <- expression(rbind(rows))[[1]]
-	for (i in 1:n)
-		result[i+1] <- rows[i]
-	result
-}
-
-do.t <- function(cols)
-{
-	n <- length(cols)
-	result <- expression(t(cols))[[1]]
-	for (i in 1:n)
-		result[i+1] <- cols[i]
-	result
-}
-
-Deriv.c <- function(f, x, env)
-	do.rbind(lapply(f[-1], function (arg) Deriv_(arg, x, env)))
-
-Deriv.t <- function(f, x, env)
-	do.t(lapply(f[-1], function (arg) Deriv_(arg, x, env)))
-
-# This function applies the chain rule.  For example,
-#	chain.rule("cos")
-# would be a valid function for differentiating "sin".
-#
-# f.deriv gives the derivative of the function.
-# The chain rule evaluates f'(g(x)) * g'(x).
-# The "u" term corresponds to f'(g(x)).
-# The "v" term corresponds to g'(x).
-chain.rule <- function(f.deriv, vec.valued=FALSE) function(expr, x, env)
-{
-	u <- expr
-	u[[1]] <- as.symbol(f.deriv)
-
-	n <- length(expr)
-	v <- lapply(expr[2:n], function(arg) Deriv_(arg, x, env))
-
-	if (vec.valued) {
-		`expr.%*%`(u, do.rbind(v))
-	} else {
-		`expr.*`(u, v[[1]])
-	}
-}
-
-Deriv.sum <- function(f, x, env)
-{
-	result <- expression(sum(terms))[[1]]
-	result[[2]] <- Deriv_(f[[2]], x, env)
-	result
-}
-
-sqrt.deriv <- function(x) 1/(2*sqrt(x))
-tan.deriv <- function(x) 1/cos(x)**2
-
-neg.sin <- function(x) -sin(x)
 
 Deriv.ifelse <- function(f, x, env)
 {
@@ -347,35 +161,11 @@ Deriv.ifelse <- function(f, x, env)
 	f[[4]] <- Deriv_(f[[4]], x, env)
 	f
 }
-dnorm.slow <- function(x, mean, sd)
-	1/(sqrt(2*pi)*sd) * exp(-(x - mean)^2/(2*sd^2))
-dnorm.deriv <- function(x, mean, sd) {
-	f <- function(x, mean, sd){}
-	body(f) <- Deriv_(body(dnorm.slow), "x")
-	return(f)
-}
 
-repl_ab <- function(st, lrepl) {
-	# In a statement st, replace symbols a, d_a etc by the content
-	# the correponding item in the list lrepl
-	if (is.numeric(st)) {
-		return(st)
-	} else if (is.symbol(st)) {
-		stch <- as.character(st)
-		repl <- lrepl[[stch]]
-		return(if (is.null(repl)) st else repl)
-	} else if (is.call(st)) {
-		# recursive call
-		for (i in 2:length(st)) {
-			# replace a,b, in all arguments
-			st[[i]] <- repl_ab(st[[i]], lrepl)
-		}
-		return(st)
-	}
-}
 derst <- function(st, x, env) {
+#browser()
 	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
-	if (is.numeric(st)) {
+	if (is.numeric(st) || ((is.uminus(st) || is.uplus(st)) && is.numeric(st[[2]]))) {
 		return(0)
 	} else if (is.symbol(st)) {
 		if (as.character(st) == x) {
@@ -383,34 +173,58 @@ derst <- function(st, x, env) {
 		} else {
 			return(0)
 		}
+	} else if ((is.uminus(st) || is.uplus(st)) && is.symbol(st[[2]])) {
+		if (as.character(st[[2]]) == x) {
+			return(if (is.uminus(st)) -1 else 1)
+		} else {
+			return(0)
+		}
 	} else if (is.call(st)) {
+#browser()
 		stch <- as.character(st[[1]])
-		# prepare expression to differentiate
+		if (stch %in% dlin) {
+			# linear case
+			# differentiate all arguments then pass them to the function
+			dargs <- lapply(st[-1], function(a) Simplify_(derst(a, x, env)))
+			return(as.call(c(st[[1]], dargs)))
+		}
+		nb_args=length(st)-1
 		if (is.null(drule[[stch]])) {
-			# no known rule for that function
-			# differentiate its body if can get it
-			ff <- get(stch, envir=env, mode="function")
+			# no derivative rule for this function
+			# try to get the body and differentiate it
+			ff <- get(stch, mode="function", envir=env)
 			args <- st[-1]
-			names(args)=names(formals(ff))
+			names(args) <- names(formals(ff))
 			if (is.null(names(args))) {
 				stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 			}
-			st <- eval(call("substitute", body(ff), args))
-		}
-		nb_args=length(st)-1
-		if (is.null(drule[[stch]][[nb_args]])) {
+		} else if (is.null(drule[[stch]][[nb_args]])) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
-		lrepl=list(
-			a=st[[2]],
-			d_a=derst(st[[2]], x, env)
-		)
-		if (nb_args == 2) {
+		if (nb_args <= 3) {
+			lrepl=list(
+				a=st[[2]],
+				d_a=derst(st[[2]], x, env)
+			)
+		}
+		if (nb_args > 1 && nb_args <= 3) {
 			lrepl$b <- st[[3]]
 			lrepl$d_b <- derst(st[[3]], x, env)
 		}
+		if (nb_args > 2 && nb_args <= 3) {
+			lrepl$c <- st[[4]]
+			lrepl$d_c <- derst(st[[4]], x, env)
+		}
 		
 		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], lrepl))))
+	} else if (is.function(st)) {
+		# differentiate its body if can get it
+		args <- st[-1]
+		names(args)=names(formals(ff))
+		if (is.null(names(args))) {
+			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
+		}
+		st <- eval(call("substitute", body(ff), args))
 	} else {
 		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
 	}
@@ -421,18 +235,25 @@ derst <- function(st, x, env) {
    assign("derivatives", new.env(), envir=environment(Deriv))
    assign("drule", new.env(), envir=environment(Deriv))
    
-   # arithmetic rules
+   # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
+   dlin=c("-", "c", "t", "sum")
+   assign("dlin", dlin, envir=environment(Deriv))
+   
    # first item in the list correspond to a call with one argument
-   # second (if any) for two. NULL means that with this number of argument
-   # a function can not be called
+   # second (if any) for two, third for three. NULL means that with
+   # this number of argument this function can not be called
+   drule[["("]] <- list(quote(d_a)) # (a) => omit paranthesis
+   # linear arithmetics are already handled by dlin
+   # exception is maid for unitary plus (it is just omitted)
    drule[["+"]] <- list(quote(d_a), quote(d_a+d_b)) # +a, a+b
-   drule[["-"]] <- list(quote(-d_a), quote(d_a-d_b)) # -a, a-b
+   #drule[["-"]] <- list(quote(-d_a), quote(d_a-d_b)) # -a, a-b
+   # arithmetic non linear rules
    drule[["*"]] <- list(NULL, quote(d_a*b+a*d_b)) # a*b
-   drule[["/"]] <- list(NULL, quote((d_a*b-a*d_b)/b^2)) # a*b
+   drule[["/"]] <- list(NULL, quote(d_a/b-a*d_b/b^2)) # a*b
    # power functions
    drule[["^"]] <- list(NULL, quote(d_a*b*a^(b-1)+d_b*log(a)*a^b)) # a^b
    # example of recursive call
-   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("a"), 0.5), "a")) # sqrt(a)
+   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("a"), 0.5), "a", NULL)) # sqrt(a)
    # but we prefer a sqrt() formula
    drule[["sqrt"]] <- list(quote(0.5*d_a/sqrt(a)))
    drule[["log"]] <- list(quote(d_a/a), quote(d_a/(a*log(b)))) # log(a), log(a, b)
@@ -454,38 +275,15 @@ derst <- function(st, x, env) {
    drule[["asinh"]] <- list(quote(d_a/sqrt(a^2+1)))
    drule[["acosh"]] <- list(quote(d_a/sqrt(a^2-1)))
    drule[["atanh"]] <- list(quote(d_a/(1-a^2)))
+   # stats
+   drule[["dnorm"]] <- list(NULL, quote(d_a) )
 
    assign("+", `Simplify.+`, envir=simplifications)
    assign("-", `Simplify.-`, envir=simplifications)
    assign("*", `Simplify.*`, envir=simplifications)
    assign("/", `Simplify./`, envir=simplifications)
    assign("(", `Simplify.(`, envir=simplifications)
-   assign("c", `Simplify.c`, envir=simplifications)
    assign("^", `Simplify.^`, envir=simplifications)
-   assign("reciprocal", `Simplify.reciprocal`, envir=simplifications)
-   assign("neg.sin", `Simplify.neg.sin`, envir=simplifications)
-   assign("reciprocal.deriv", `Simplify.reciprocal.deriv`, envir=simplifications)
-   assign("sqrt.deriv", `Simplify.sqrt.deriv`, envir=simplifications)
-   assign("tan.deriv", `Simplify.tan.deriv`, envir=simplifications)
 
-   assign("+", `Deriv.+`, envir=derivatives)
-   assign("-", `Deriv.-`, envir=derivatives)
-   assign("*", `Deriv.*`, envir=derivatives)
-   assign("%*%", `Deriv.%*%`, envir=derivatives)
-   assign("/", `Deriv./`, envir=derivatives)
-   assign("reciprocal", chain.rule("reciprocal.deriv"), envir=derivatives)
-   assign("^", `Deriv.^`, envir=derivatives)
-   assign("(", `Deriv.(`, envir=derivatives)
-   #assign("c", Deriv.c, envir=derivatives)
-   #assign("t", Deriv.t, envir=derivatives)
-   assign("sin", chain.rule("cos"), envir=derivatives)
-   assign("cos", chain.rule("neg.sin"), envir=derivatives)
-   assign("tan", chain.rule("tan.deriv"), envir=derivatives)
-   assign("exp", chain.rule("exp"), envir=derivatives)
-   assign("log", chain.rule("reciprocal"), envir=derivatives)
-   assign("length", Deriv.constant, envir=derivatives)
-   assign("sum", Deriv.sum, envir=derivatives)
-   assign("sqrt", chain.rule("sqrt.deriv"), envir=derivatives)
-   assign("ifelse", Deriv.ifelse, envir=derivatives)
-   assign("dnorm", chain.rule("dnorm.deriv", TRUE), envir=derivatives)
+   #assign("ifelse", Deriv.ifelse, envir=derivatives)
 }
