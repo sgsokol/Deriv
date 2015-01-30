@@ -198,6 +198,8 @@ derst <- function(st, x, env) {
 			if (is.null(names(args))) {
 				stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 			}
+			st <- eval(call("substitute", body(ff), as.list(args)))
+			return(derst(st, x, env))
 		} else if (is.null(drule[[stch]][[nb_args]])) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
@@ -225,6 +227,7 @@ derst <- function(st, x, env) {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
 		st <- eval(call("substitute", body(ff), args))
+		derst(st, x, env)
 	} else {
 		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
 	}
