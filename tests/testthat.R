@@ -3,7 +3,7 @@ library(Deriv)
 
 #test_check("Deriv")
 context("Symbolic derivation rules")
-f=function(x) {}
+f=function(x) {} # empty place holder
 
 expect_equal_deriv=function(t, r) {
    test=substitute(t)
