@@ -165,7 +165,7 @@ Deriv.ifelse <- function(f, x, env)
 derst <- function(st, x, env) {
 #browser()
 	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
-	if (is.numeric(st) || ((is.uminus(st) || is.uplus(st)) && is.numeric(st[[2]]))) {
+	if (is.unumeric(st)) {
 		return(0)
 	} else if (is.symbol(st)) {
 		if (as.character(st) == x) {
@@ -217,7 +217,6 @@ derst <- function(st, x, env) {
 			lrepl$c <- st[[4]]
 			lrepl$d_c <- derst(st[[4]], x, env)
 		}
-		
 		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], lrepl))))
 	} else if (is.function(st)) {
 		# differentiate its body if can get it
