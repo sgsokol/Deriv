@@ -7,21 +7,30 @@
 
 Simplify_ <- function(expr)
 {
-	if (is.symbol(expr) || is.numeric(expr)) {
-		expr
-	} else if (is.language(expr) && is.symbol(expr[[1]])) {
-		# is there a rule in the table?
-		sym.name <- as.character(expr[[1]])
-		if (class(try(Simplify.rule <-
-				get(sym.name, envir=simplifications,
-					inherits=FALSE), silent=TRUE))
-					!= "try-error")
-			return(Simplify.rule(expr))
-		else if (all(sapply(expr[-1], function(arg) is.numeric(Simplify_(arg)))))
+	if (is.unumeric(expr)) {
+		eval(expr)
+	} else if (is.call(expr)) {
+		args <- lapply(expr[-1], Simplify_)
+		if (all(sapply(args, is.numeric))) {
+			# if all arguments are numeric, evaluate them
 			return(eval(expr))
-		# if all arguments are numeric, evaluate them
+		} else {
+			# is there a rule in the table?
+			sym.name <- as.character(expr[[1]])
+			if (class(try(Simplify.rule <-
+					get(sym.name, envir=simplifications,
+					inherits=FALSE), silent=TRUE))
+					!= "try-error") {
+				expr[-1]=args
+				return(Simplify.rule(expr))
+			} else {
+				expr[-1]=args
+				return(expr)
+			}
+		}
+	} else {
+		expr
 	}
-	expr
 }
 
 Simplify <- function(expr)
@@ -35,28 +44,28 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			envir=env)
 }
 
+# in what follows no need to Simplify_ args neither to check if
+# all arguments are unumeric. It is done in upper Simplify_()
+`Simplify.(` <- function(expr)
+{
+	expr[[2]]
+}
 `Simplify.+` <- function(expr)
 {
 	if (length(expr) == 2)
 	{
-		if (is.numeric(expr[[2]]))
-			return(expr[[2]])
-		else {
-			return(Simplify_(expr[[2]]))
-		}
+		return(expr[[2]])
 	}
-	a <- Simplify_(expr[[2]])
-	b <- Simplify_(expr[[3]])
+	a <- expr[[2]]
+	b <- expr[[3]]
 
-	if (is.numeric(a) && all(a == 0)) {
+	if (a == 0) {
 		b
-	} else if (is.numeric(b) && all(b == 0)) {
+	} else if (b == 0) {
 		a
-	} else if (is.numeric(a) && is.numeric(b)) {
-		a + b
+	} else if (is.uminus(b)) {
+		call("-", a, b[[2]])
 	} else {
-		expr[[2]] <- a
-		expr[[3]] <- b
 		expr
 	}
 }
@@ -65,34 +74,28 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 {
 	if (length(expr) == 2)
 	{
-		if (is.numeric(expr[[2]]))
-			return(-expr[[2]])
 		if (is.uminus(expr[[2]])) {
 			return(Simplify_(expr[[2]][[2]]))
 		} else if (is.uplus(expr[[2]])) {
 			return(Simplify_(substitute(-expr[[2]][[2]])))
 		}
-		return(expr)
+		a <- 0
+		b <- expr[[2]]
+	} else {
+		a <- expr[[2]]
+		b <- expr[[3]]
 	}
 
-	a <- Simplify_(expr[[2]])
-	b <- Simplify_(expr[[3]])
-
-	if (is.numeric(a) && all(a == 0)) {
-		if (is.numeric(b)) -b else substitute(-b)
-	} else if (is.numeric(b) && all(b == 0)) {
+	if (a == 0) {
+		if (is.uminus(b)) b[[2]] else substitute(-b)
+	} else if (b == 0) {
 		a
-	} else if (is.numeric(a) && is.numeric(b)) {
-		a - b
+	} else if (is.uminus(b)) {
+		call("+", a, b[[2]])
 	} else {
-		expr[[2]] <- a
-		expr[[3]] <- b
 		expr
 	}
 }
-
-`Simplify.(` <- function(expr)
-	Simplify_(expr[[2]])
 
 `Simplify.*` <- function(expr, div=FALSE)
 {
@@ -109,22 +112,17 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		b <- b[[2]]
 	}
 #browser()
-	if (is.numeric(a) && a == 0) {
+	if (a == 0 || (b == 0 && !div)) {
 		0
-	} else if (is.numeric(b) && b == 0 && !div) {
-		0
-	} else if (is.numeric(a) && a == 1 && !div) {
-		if (sminus) Simplify_(substitute(-b)) else Simplify_(b)
-	} else if (is.numeric(b) && b == 1) {
-		if (sminus) Simplify_(substitute(-a)) else Simplify_(a)
-	} else if (is.numeric(a) && is.numeric(b)) {
-		res <- if (div) a/b else a * b
-		if (sminus) -res else res
+	} else if (a == 1 && !div) {
+		if (sminus) substitute(-b) else b
+	} else if (b == 1) {
+		if (sminus) substitute(-a) else a
 	} else {
 #browser()
 		# get numerator and denominator for a and b than combine them
-		nd_a <- Numden(Simplify_(a))
-		nd_b <- Numden(Simplify_(b))
+		nd_a <- Numden(a)
+		nd_b <- Numden(b)
 		if (div) {
 			nd <- list(num=c(nd_a$num, nd_b$den), den=c(nd_a$den, nd_b$num))
 		} else {
@@ -141,17 +139,21 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			} else {
 				fa[[na]] <- 1
 			}
+			# make factors positive
+			if (fa[[na]] < 0) {
+				fa[[na]] <- -fa[[na]]
+				sminus <- !sminus
+			}
 		}
 		if (fa$num == 0) {
 			return(0)
 		}
 		if ((as.integer(fa$num) != fa$num ||
-		   as.integer(fa$den) != fa$den) ||
-		   fa$num == fa$den || fa$num == -fa$den) {
+				as.integer(fa$den) != fa$den) ||
+				fa$num == fa$den || fa$num == -fa$den) {
 			fa$num <- fa$num/fa$den
 			fa$den <- 1
 		}
-		fa$num=if (sminus) -fa$num else fa$num
 		# simplify identical terms in num and denum
 		nd_eq=outer(sapply(nd$den, format1), sapply(nd$num, format1), `==`)
 		ipair=matrix(0, nrow=2, ncol=0)
@@ -170,7 +172,8 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		# form symbolic products
 		eprod=list()
 		for (na in c("num", "den")) {
-			if (length(nd[[na]]) == 0 && fa[[na]] == 1) next
+			if (length(nd[[na]]) == 0 && fa[[na]] == 1)
+				next
 			eprod[[na]]=if (length(nd[[na]])) nd[[na]][[1]] else fa[[na]]
 			for (term in nd[[na]][-1]) {
 				eprod[[na]] <- call("*", eprod[[na]], term)
@@ -182,10 +185,11 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		eprod$num=if (is.null(eprod$num)) fa$num else eprod$num
 		if (is.null(eprod$den)) {
 			# we have no denominator
-			return(eprod$num)
+			expr <- eprod$num
 		} else {
-			return(call("/", eprod$num, eprod$den))
+			expr <- call("/", eprod$num, eprod$den)
 		}
+		return(if (sminus) substitute(-expr) else expr)
 	}
 }
 `Simplify./` <- function(expr)
@@ -194,42 +198,33 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 }
 `Simplify.^` <- function(expr)
 {
-	a <- Simplify_(expr[[2]])
-	b <- Simplify_(expr[[3]])
+	a <- expr[[2]]
+	b <- expr[[3]]
 
-	if (is.numeric(a) && all(a == 0)) {
+	if (a == 0) {
 		0
-	} else if (is.numeric(b) && all(b == 0)) {
+	} else if (b == 0 || a == 1) {
 		1
-	} else if (is.numeric(a) && all(a == 1)) {
-		1
-	} else if (is.numeric(b) && all(b == 1)) {
+	} else if (b == 1) {
 		a
-	} else if (is.numeric(a) && is.numeric(b)) {
-		a ^ b
-	} else {
-		if (is.call(a)) {
-			if (as.character(a[[1]]) == "^") {
-				# product of exponents
-				b <- Simplify_(call("*", a[[3]], b))
-				a <- a[[2]]
-			} else if (as.character(a[[1]]) == "sqrt") {
-				# divide by 2
-				b <- Simplify_(call("/", b, 2))
-				a <- a[[2]]
-			}
-		}
-		if (is.numeric(b)) {
-			if (all(b == 1)) {
-				return(a)
-			} else if (all(b == 0.5)) {
-				return(substitute(sqrt(a)))
-			} else if (all(b == -0.5)) {
-				return(substitute(1/sqrt(a)))
-			}
+	} else if (b == 0.5) {
+		substitute(sqrt(a))
+	} else if (b == -0.5) {
+		substitute(1/sqrt(a))
+	} else if (is.call(a)) {
+		if (as.character(a[[1]]) == "^") {
+			# product of exponents
+			b <- Simplify_(call("*", a[[3]], b))
+			a <- a[[2]]
+		} else if (as.character(a[[1]]) == "sqrt") {
+			# divide by 2
+			b <- Simplify_(call("/", b, 2))
+			a <- a[[2]]
 		}
 		expr[[2]] <- a
 		expr[[3]] <- b
+		expr
+	} else {
 		expr
 	}
 }
@@ -249,7 +244,7 @@ Numden <- function(expr) {
 	} else if (is.uplus(expr)) {
 		Numden(expr[[2]])
 	} else if (is.symbol(expr) || is.numeric(expr)) {
-		list(num=list(expr), den=list(1))
+		list(num=list(expr))
 	} else if (expr[[1]] == as.symbol("*")) {
 		# recursive call
 		a=Numden(expr[[2]])
@@ -278,4 +273,8 @@ is.uminus <- function(e) {
 is.uplus <- function(e) {
 	# detect if e is unitary plus, e.g. "+a"
 	return(is.call(e) && length(e) == 2 && e[[1]] == as.symbol("+"))
+}
+is.unumeric <- function(e) {
+	# detect if numeric with optional unitary sign(s)
+	return(is.numeric(e) || ((is.uminus(e) || is.uplus(e)) && is.unumeric(e[[2]])))
 }
