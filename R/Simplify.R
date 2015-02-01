@@ -124,18 +124,31 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		nd_a <- Numden(a)
 		nd_b <- Numden(b)
 		if (div) {
-			nd <- list(num=c(nd_a$num, nd_b$den), den=c(nd_a$den, nd_b$num))
+			nd <- list(
+				num=list(b=c(nd_a$num$b, nd_b$den$b),
+				p=c(nd_a$num$p, nd_b$den$p)),
+				den=list(b=c(nd_a$den$b, nd_b$num$b),
+				p=c(nd_a$den$p, nd_b$num$p))
+			)
 		} else {
-			nd <- list(num=c(nd_a$num, nd_b$num), den=c(nd_a$den, nd_b$den))
+			nd <- list(
+				num=list(b=c(nd_a$num$b, nd_b$num$b),
+				p=c(nd_a$num$p, nd_b$num$p)),
+				den=list(b=c(nd_a$den$b, nd_b$den$b),
+				p=c(nd_a$den$p, nd_b$den$p))
+			)
 		}
 		# reduce numerics to only one factor
 		fa=list()
 		for (na in c("num", "den")) {
-			inu=if (length(nd[[na]])) which(sapply(nd[[na]], is.numeric)) else integer(0)
+			inu=if (length(nd[[na]]$b)) which(sapply(nd[[na]]$b, is.numeric) &
+				sapply(nd[[na]]$p, is.numeric)) else integer(0)
 			if (length(inu)) {
-				fa[[na]] <- prod(unlist(nd[[na]][inu]))
+				# the power of numerics are always 1 after Simplify_()
+				fa[[na]] <- prod(unlist(nd[[na]]$b[inu]))
 				# remove numerics
-				nd[[na]] <- nd[[na]][-inu]
+				nd[[na]]$b <- nd[[na]]$b[-inu]
+				nd[[na]]$p <- nd[[na]]$p[-inu]
 			} else {
 				fa[[na]] <- 1
 			}
@@ -154,35 +167,77 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			fa$num <- fa$num/fa$den
 			fa$den <- 1
 		}
-		# simplify identical terms in num and denum
-		nd_eq=outer(sapply(nd$den, format1), sapply(nd$num, format1), `==`)
-		ipair=matrix(0, nrow=2, ncol=0)
+		# group identical bases by adding their powers
+browser()
+		for (na in c("num", "den")) {
+			if (length(nd[[na]]$b) <= 1)
+				next
+			nd_eq <- outer(sapply(nd[[na]]$b, format1), sapply(nd[[na]]$b, format1), `==`)
+			for (inum in seq(len=ncol(nd_eq))) {
+				isim <- which(nd_eq[,inum])
+				isim <- isim[isim > inum & sapply(nd[[na]]$p[isim], `!=`, 0)]
+				if (length(isim)) {
+					# add powers for this base
+					p <- nd[[na]]$p[[inum]]
+					for (i in isim) {
+						p <- call("+", p, nd[[na]]$p[[i]])
+					}
+					nd[[na]]$p[[inum]] <- Simplify_(p)
+					# set grouped powers to 0
+					nd[[na]]$p[isim] <- 0
+				}
+			}
+			# remove power==0 terms
+			ize=which(sapply(nd[[na]]$p, `==`, 0))
+			if (length(ize)) {
+				nd[[na]]$b <- nd[[na]]$b[-ize]
+				nd[[na]]$p <- nd[[na]]$p[-ize]
+			}
+		}
+		# simplify identical terms in num and denum by subtracting powers
+		nd_eq <- outer(sapply(nd$den$b, format1), sapply(nd$num$b, format1), `==`)
+		ipair <- matrix(0, nrow=2, ncol=0)
 		for (inum in seq(len=ncol(nd_eq))) {
-			iden=which(nd_eq[,inum])
-			iden=iden[!iden %in% ipair[2,]]
+			iden <- which(nd_eq[,inum]) # of length at most 1 as terms are already grouped
+			iden <- iden[!iden %in% ipair[2,]]
 			if (length(iden)) {
-				# remove this pair
-				ipair=cbind(ipair, c(inum, iden[1]))
+				# simplify power for this pair
+				ipair <- cbind(ipair, c(inum, iden))
+				nd$num$p[[inum]] <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]))
+				nd$den$p[[iden]] <- 0
 			}
 		}
 		if (ncol(ipair) > 0) {
-			nd$num=nd$num[-ipair[1,]]
-			nd$den=nd$den[-ipair[2,]]
+			# remove power==0 terms
+			for (na in c("num", "den")) {
+				ize=which(sapply(nd[[na]]$p, `==`, 0))
+				if (length(ize)) {
+					nd[[na]]$b <- nd[[na]]$b[-ize]
+					nd[[na]]$p <- nd[[na]]$p[-ize]
+				}
+			}
 		}
 		# form symbolic products
-		eprod=list()
+		eprod <- list()
 		for (na in c("num", "den")) {
-			if (length(nd[[na]]) == 0 && fa[[na]] == 1)
+			if (length(nd[[na]]$b) == 0 && fa[[na]] == 1)
 				next
-			eprod[[na]]=if (length(nd[[na]])) nd[[na]][[1]] else fa[[na]]
-			for (term in nd[[na]][-1]) {
+			# remove power==0 terms
+			ize=sapply(nd[[na]]$p, `==`, 0)
+			nd[[na]]$b <- nd[[na]]$b[!ize]
+			nd[[na]]$p <- nd[[na]]$p[!ize]
+			if (length(nd[[na]]$b) == 0)
+				next
+			eprod[[na]] <- if (length(nd[[na]])) Simplify_(call("^", nd[[na]]$b[[1]], nd[[na]]$p[[1]])) else fa[[na]]
+			for (i in seq_along(nd[[na]]$b[-1])) {
+				term <- Simplify_(call("^", nd[[na]]$b[[i]], nd[[na]]$p[[i]]))
 				eprod[[na]] <- call("*", eprod[[na]], term)
 			}
-			if (length(nd[[na]]) && fa[[na]] != 1) {
+			if (length(nd[[na]]$b) && fa[[na]] != 1) {
 				eprod[[na]] <- if (fa[[na]] == -1) call("-", eprod[[na]]) else call("*", fa[[na]], eprod[[na]])
 			}
 		}
-		eprod$num=if (is.null(eprod$num)) fa$num else eprod$num
+		eprod$num <- if (is.null(eprod$num)) fa$num else eprod$num
 		if (is.null(eprod$den)) {
 			# we have no denominator
 			expr <- eprod$num
@@ -232,31 +287,37 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# Each sublist regroups the language expressions which are not products neither
-	# divisions
+	# divisions. The terms are decomposed in b^p sublist
 	if (is.uminus(expr)) {
-		if (is.numeric(expr[[2]])) {
-			list(num=list(-expr[[2]]))
-		} else {
-			a=Numden(expr[[2]])
-			a$num=c(-1, a$num)
-			a
-		}
+		a=Numden(expr[[2]])
+		a$num$b=c(-1, a$num$b)
+		a$num$p=c(1, a$num$p)
+		a
 	} else if (is.uplus(expr)) {
 		Numden(expr[[2]])
 	} else if (is.symbol(expr) || is.numeric(expr)) {
-		list(num=list(expr))
+		list(num=list(b=expr, p=1))
 	} else if (expr[[1]] == as.symbol("*")) {
 		# recursive call
 		a=Numden(expr[[2]])
 		b=Numden(expr[[3]])
-		list(num=c(a$num, b$num), den=c(a$den, b$den))
+		list(num=list(b=c(a$num$b, b$num$b), p=c(a$num$p, b$num$p)),
+			den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)))
 	} else if (expr[[1]] == as.symbol("/")) {
 		# recursive call
 		a=Numden(expr[[2]])
 		b=Numden(expr[[3]])
-		list(num=c(a$num, b$den), den=c(a$den, b$num))
+		list(num=list(b=c(a$num$b, b$den$b), p=c(a$num$p, b$den$p)),
+			den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)))
+	} else if (is.call(expr) && expr[[1]] == as.symbol("^")) {
+		if (expr[[3]] < 0) {
+			# make the power look positive
+			list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]))
+		} else {
+			list(num=list(b=expr[[2]], p=expr[[3]]))
+		}
 	} else {
-		list(num=list(expr))
+		list(num=list(b=expr, p=1))
 	}
 }
 format1 <- function(expr) {
