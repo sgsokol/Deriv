@@ -168,7 +168,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			fa$den <- 1
 		}
 		# group identical bases by adding their powers
-browser()
+#browser()
 		for (na in c("num", "den")) {
 			if (length(nd[[na]]$b) <= 1)
 				next
@@ -229,7 +229,7 @@ browser()
 			if (length(nd[[na]]$b) == 0)
 				next
 			eprod[[na]] <- if (length(nd[[na]])) Simplify_(call("^", nd[[na]]$b[[1]], nd[[na]]$p[[1]])) else fa[[na]]
-			for (i in seq_along(nd[[na]]$b[-1])) {
+			for (i in 1+seq_along(nd[[na]]$b[-1])) {
 				term <- Simplify_(call("^", nd[[na]]$b[[i]], nd[[na]]$p[[i]]))
 				eprod[[na]] <- call("*", eprod[[na]], term)
 			}
@@ -287,7 +287,7 @@ browser()
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# Each sublist regroups the language expressions which are not products neither
-	# divisions. The terms are decomposed in b^p sublist
+	# divisions. The terms are decomposed in b^p sublists
 	if (is.uminus(expr)) {
 		a=Numden(expr[[2]])
 		a$num$b=c(-1, a$num$b)
