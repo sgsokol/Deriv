@@ -21,7 +21,7 @@ In R session do:
     > f <- function(x, n=2) x^n+sin(n*x) # user defined function to diffierentiate
     > (df <- Deriv(f)) # -> c(x = n * x^(n - 1) + n * cos(n * x), n = log(x) * x^n + x * cos(n * x))
     > df(2, 3)         # ->                   x         n
-                    # ->           14.880511  7.465518
+                       # ->           14.880511  7.465518
     
     > Deriv(expression(f(y, 3)), "y")     # -> expression(3 * y^2 + 3 * cos(3 * y))
     > Deriv(~ f(y, 3), "y")               # -> 3 * y^2 + 3 * cos(3 * y)
