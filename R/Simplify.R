@@ -1,4 +1,4 @@
-# Simplify.R -- symbollic simplification
+# Simplify.R -- symbolic simplification
 # written by Andrew Clausen <clausen@econ.upenn.edu> in 2007
 # thanks to a bug fix from Mark Reid <mark.reid@anu.edu.au> in 21/2/2009
 #
@@ -50,51 +50,118 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 {
 	expr[[2]]
 }
-`Simplify.+` <- function(expr)
+`Simplify.+` <- function(expr, add=TRUE)
 {
 	if (length(expr) == 2)
 	{
-		return(expr[[2]])
+		if (add)
+			return(expr[[2]])
+		else if (is.uminus(expr[[2]]))
+			return(expr[[2]][[2]])
+		else if (is.uplus(expr[[2]]))
+			return(call("-", expr[[2]][[2]]))
+		else
+			return(expr)
 	}
 	a <- expr[[2]]
 	b <- expr[[3]]
 
 	if (a == 0) {
-		b
+		return(if (add) b else call("-", b))
 	} else if (b == 0) {
-		a
-	} else if (is.uminus(b)) {
-		call("-", a, b[[2]])
-	} else {
-		expr
+		return(a)
+	} else if (a == b && !add) {
+		return(0)
 	}
+	# group and simplify identical terms
+	apn <- Sumdiff(a)
+	bpn <- Sumdiff(b)
+	if (add)
+		pn <- list(pos=c(apn$pos, bpn$pos), neg=c(apn$neg, bpn$neg))
+	else
+		pn <- list(pos=c(apn$pos, bpn$neg), neg=c(apn$neg, bpn$pos))
+	# group all numerics
+	nu <- list()
+	for (na in c("pos", "neg")) {
+		inum <- sapply(pn[[na]], is.numeric)
+		nu[[na]] <- sum(unlist(pn[[na]][inum]))
+		# remove numerics from main term lists
+		pn[[na]] <- pn[[na]][!inum]
+	}
+	# group identical terms
+	ta <- list()
+	pnch <- list()
+	for (na in c("pos", "neg")) {
+		if (length(pn[[na]]) == 0)
+			next
+		pnch[[na]] <- sapply(pn[[na]], format1)
+		ta[[na]] <- table(pnch[[na]]) # count of unique entries
+		isim <- apply(outer(pnch[[na]], names(ta[[na]]), `==`), 2, function(v) which(v)[1])
+		# keep only unique terms
+		pn[[na]] <- pn[[na]][isim]
+		pnch[[na]] <- pnch[[na]][-isim]
+	}
+	# simplify ta for identical terms in pos and neg
+	ijsim <- outer(pnch$neg, pnch$pos, `==`) # each column has at most one TRUE
+	irm=c()
+	for (ipos in seq_along(pnch$pos)) {
+		ineg <- which(ijsim[,ipos])
+		if (length(ineg) == 0)
+			next
+		ta$pos[ipos] <- ta$pos[ipos] - ta$neg[ineg]
+		irm <- c(irm, ineg)
+	}
+	# remove simplified terms from neg
+	if (length(irm)) {
+		pn$neg <- pn$neg[-irm]
+		ta$neg <- ta$neg[-irm]
+	}
+	# move negative coefs from pos to neg
+	ineg <- which(ta$pos < 0)
+	if (length(ineg)) {
+		pn$neg <- c(pn$neg, pn$pos[ineg])
+		pn$pos <- pn$pos[-ineg]
+		ta$neg <- c(ta$neg, -ta$pos)
+		ta$pos <- ta$pos[-ineg]
+		pnch$neg <- c(pnch$neg, pnch$pos[ineg])
+		pnch$pos <- pnch$pos[-ineg]
+	}
+	# remove ta==0 in pos
+	inul <- ta$pos == 0
+	pn$pos <- pn$pos[!inul]
+	ta$pos <- ta$pos[!inul]
+	pnch$pos <- pnch$pos[!inul]
+	
+	for (na in c("pos", "neg")) {
+		# where ta > 1, replace term by nb_repeat*term
+		pn[[na]][ta[[na]] > 1] <- lapply(which(ta[[na]] > 1), function(i) Simplify_(call("*", ta[[na]][i], pn[[na]][i])))
+	}
+	# form final symbolic expression
+	if (length(pn$pos) == 0 && length(pn$neg) == 0) {
+			return(0)
+	}
+	res=list()
+	for (na in c("pos", "neg")) {
+		if (length(pn[[na]]) == 0)
+			next
+		iord <- order(pnch[[na]])
+		expr <- pn[[na]][[iord[1]]]
+		for (i in iord[-1]) {
+			expr <- call("+", expr, pn$neg[[i]])
+		}
+		res[[na]] <- expr
+	}
+	if (is.null(res$pos))
+		return(call("-", res$neg))
+	else if (is.null(res$neg))
+		return(res$pos)
+	else
+		return(call("-", res$pos, res$neg))
 }
 
 `Simplify.-` <- function(expr)
 {
-	if (length(expr) == 2)
-	{
-		if (is.uminus(expr[[2]])) {
-			return(Simplify_(expr[[2]][[2]]))
-		} else if (is.uplus(expr[[2]])) {
-			return(Simplify_(substitute(-expr[[2]][[2]])))
-		}
-		a <- 0
-		b <- expr[[2]]
-	} else {
-		a <- expr[[2]]
-		b <- expr[[3]]
-	}
-
-	if (a == 0) {
-		if (is.uminus(b)) b[[2]] else substitute(-b)
-	} else if (b == 0) {
-		a
-	} else if (is.uminus(b)) {
-		call("+", a, b[[2]])
-	} else {
-		expr
-	}
+	`Simplify.+`(expr, add=FALSE)
 }
 
 `Simplify.*` <- function(expr, div=FALSE)
@@ -338,4 +405,28 @@ is.uplus <- function(e) {
 is.unumeric <- function(e) {
 	# detect if numeric with optional unitary sign(s)
 	return(is.numeric(e) || ((is.uminus(e) || is.uplus(e)) && is.unumeric(e[[2]])))
+}
+Sumdiff <- function(expr) {
+	# Return a list with "pos" as a list of positive terms in a sum
+	# and "neg" as a list of negative terms in a sum
+	if (is.uminus(expr)) {
+		a <- Sumdif(expr[[2]])
+		list(pos=a$neg, neg=a$pos)
+	} else if (is.uplus(expr)) {
+		Sumdiff(expr[[2]])
+	} else if (is.symbol(expr) || is.numeric(expr)) {
+		if (expr > 0) list(pos=expr) else list(neg=-expr)
+	} else if (expr[[1]] == as.symbol("+")) {
+		# recursive call
+		a <- Sumdiff(expr[[2]])
+		b <- Sumdiff(expr[[3]])
+		list(pos=c(a$pos, b$pos), neg=c(a$neg, b$neg))
+	} else if (expr[[1]] == as.symbol("-")) {
+		# recursive call
+		a <- Sumdiff(expr[[2]])
+		b <- Sumdiff(expr[[3]])
+		list(pos=c(a$pos, b$neg), neg=c(a$neg, b$pos))
+	} else {
+		list(pos=list(expr))
+	}
 }
