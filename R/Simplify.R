@@ -13,7 +13,7 @@ Simplify_ <- function(expr)
 		args <- lapply(expr[-1], Simplify_)
 		if (all(sapply(args, is.numeric))) {
 			# if all arguments are numeric, evaluate them
-			return(eval(expr))
+			return(eval(as.call(c(expr[[1]], args))))
 		} else {
 			# is there a rule in the table?
 			sym.name <- as.character(expr[[1]])
