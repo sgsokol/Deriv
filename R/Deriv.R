@@ -43,7 +43,7 @@
 #' in C.
 #'  \item The output of "deriv" can not be differentiated again.
 #'  \item Neither function can substitute function calls.  eg:
-#'	f <- function(x, y) x + y; deriv(f(x, x^2), "x")
+#'	f <- function(x, y) x + y; deriv(~f(x, x^2), "x")
 #' }
 #'
 #' So, here are the advantages and disadvantages of this implementation:
@@ -165,13 +165,6 @@ mderst <- function(f, x, env) {
 	}
 }
 
-Deriv.ifelse <- function(f, x, env)
-{
-	f[[3]] <- Deriv_(f[[3]], x, env)
-	f[[4]] <- Deriv_(f[[4]], x, env)
-	f
-}
-
 derst <- function(st, x, env) {
 #browser()
 	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
@@ -236,57 +229,56 @@ derst <- function(st, x, env) {
 }
 
 .onLoad <- function(libname, pkgname) {
-   assign("simplifications", new.env(), envir=environment(Deriv))
-   assign("derivatives", new.env(), envir=environment(Deriv))
-   assign("drule", new.env(), envir=environment(Deriv))
-   
-   # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
-   dlin=c("-", "c", "t", "sum")
-   assign("dlin", dlin, envir=environment(Deriv))
-   
-   # first item in the list correspond to a call with one argument
-   # second (if any) for two, third for three. NULL means that with
-   # this number of argument this function can not be called
-   drule[["("]] <- list(quote(._d1)) # (._1) => omit paranthesis
-   # linear arithmetics are already handled by dlin
-   # exception is maid for unitary plus (it is just omitted)
-   drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
-   #drule[["-"]] <- list(quote(-._d1), quote(._d1-._d2)) # -._1, ._1-._2
-   # arithmetic non linear rules
-   drule[["*"]] <- list(NULL, quote(._d1*._2+._1*._d2)) # ._1*._2
-   drule[["/"]] <- list(NULL, quote(._d1/._2-._1*._d2/._2^2)) # ._1*._2
-   # power functions
-   drule[["^"]] <- list(NULL, quote(._d1*._2*._1^(._2-1)+._d2*log(._1)*._1^._2)) # ._1^._2
-   # example of recursive call
-   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("._1"), 0.5), "._1", NULL)) # sqrt(._1)
-   # but we prefer a sqrt() formula
-   drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
-   drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2)))) # log(._1), log(._1, b)
-   drule[["logb"]] <- drule[["log"]]
-   drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
-   drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
-   drule[["exp"]] <- list(quote(._d1*exp(._1)))
-   # trigonometric
-   drule[["sin"]] <- list(quote(._d1*cos(._1)))
-   drule[["cos"]] <- list(quote(-._d1*sin(._1)))
-   drule[["tan"]] <- list(quote(._d1/cos(._1)^2))
-   drule[["asin"]] <- list(quote(._d1/sqrt(1-._1^2)))
-   drule[["acos"]] <- list(quote(-._d1/sqrt(1-._1^2)))
-   drule[["atan"]] <- list(quote(._d1/(1+._1^2)))
-   # hyperbolic
-   drule[["sinh"]] <- list(quote(._d1*cosh(._1)))
-   drule[["cosh"]] <- list(quote(._d1*sinh(._1)))
-   drule[["tanh"]] <- list(quote(._d1*(1-tanh(._1)^2)))
-   drule[["asinh"]] <- list(quote(._d1/sqrt(._1^2+1)))
-   drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
-   drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
+	assign("simplifications", new.env(), envir=environment(Deriv))
+	assign("drule", new.env(), envir=environment(Deriv))
+	
+	# linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
+	dlin=c("-", "c", "t", "sum")
+	assign("dlin", dlin, envir=environment(Deriv))
+	
+	# first item in the list correspond to a call with one argument
+	# second (if any) for two, third for three. NULL means that with
+	# this number of argument this function can not be called
+	drule[["("]] <- list(quote(._d1)) # (._1) => omit paranthesis
+	# linear arithmetics are already handled by dlin
+	# exception is maid for unitary plus (it is just omitted)
+	drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
+	#drule[["-"]] <- list(quote(-._d1), quote(._d1-._d2)) # -._1, ._1-._2
+	# arithmetic non linear rules
+	drule[["*"]] <- list(NULL, quote(._d1*._2+._1*._d2)) # ._1*._2
+	drule[["/"]] <- list(NULL, quote(._d1/._2-._1*._d2/._2^2)) # ._1*._2
+	# power functions
+	drule[["^"]] <- list(NULL, quote(._d1*._2*._1^(._2-1)+._d2*log(._1)*._1^._2)) # ._1^._2
+	# example of recursive call
+	#drule[["sqrt"]] <- list(derst(call("^", as.symbol("._1"), 0.5), "._1", NULL)) # sqrt(._1)
+	# but we prefer a sqrt() formula
+	drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
+	drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2)))) # log(._1), log(._1, b)
+	drule[["logb"]] <- drule[["log"]]
+	drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
+	drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
+	drule[["exp"]] <- list(quote(._d1*exp(._1)))
+	# trigonometric
+	drule[["sin"]] <- list(quote(._d1*cos(._1)))
+	drule[["cos"]] <- list(quote(-._d1*sin(._1)))
+	drule[["tan"]] <- list(quote(._d1/cos(._1)^2))
+	drule[["asin"]] <- list(quote(._d1/sqrt(1-._1^2)))
+	drule[["acos"]] <- list(quote(-._d1/sqrt(1-._1^2)))
+	drule[["atan"]] <- list(quote(._d1/(1+._1^2)))
+	# hyperbolic
+	drule[["sinh"]] <- list(quote(._d1*cosh(._1)))
+	drule[["cosh"]] <- list(quote(._d1*sinh(._1)))
+	drule[["tanh"]] <- list(quote(._d1*(1-tanh(._1)^2)))
+	drule[["asinh"]] <- list(quote(._d1/sqrt(._1^2+1)))
+	drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
+	drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
+	# code control
+	drule[["if"]] <- list(NULL, quote(if (._1) ._d2), quote(if (._1) ._d2 else ._d3))
 
-   assign("+", `Simplify.+`, envir=simplifications)
-   assign("-", `Simplify.-`, envir=simplifications)
-   assign("*", `Simplify.*`, envir=simplifications)
-   assign("/", `Simplify./`, envir=simplifications)
-   assign("(", `Simplify.(`, envir=simplifications)
-   assign("^", `Simplify.^`, envir=simplifications)
-
-   #assign("ifelse", Deriv.ifelse, envir=derivatives)
+	assign("+", `Simplify.+`, envir=simplifications)
+	assign("-", `Simplify.-`, envir=simplifications)
+	assign("*", `Simplify.*`, envir=simplifications)
+	assign("/", `Simplify./`, envir=simplifications)
+	assign("(", `Simplify.(`, envir=simplifications)
+	assign("^", `Simplify.^`, envir=simplifications)
 }
