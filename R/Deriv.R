@@ -68,7 +68,7 @@
 #'  \item The output is an executable function, which makes it suitable for use in
 #' optimization problems.
 #' }
-#'
+#' 
 #' BAD POINTS:
 #' \itemize{
 #'  \item Differentiating vector-valued functions doesn't work properly, since
@@ -79,34 +79,36 @@
 #' gradients but not Jacobians or Hessians.
 #'  \item Gives useless error messages when it gets stuck.  This could be fixed.
 #' }
-#' Two working environments derivatives and simplifications are created in the package
-#' namescape. As their names indicates, they contain tables of derivatives and
-#' simplification rules. A priori, user does not had to manipulate them directly.
-#'
+#' Two working environments \code{drule} and \code{simplifications} are created in the package
+#' namescape. As their names indicates, they contain tables of derivative and
+#' simplification rules.
+#' To see the list of defined rules do \code{ls(drule)}.
+#' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*d_a*cospi(a)))}.
+#' After that you can derivate expressions with sinpi(x), e.g. \code{Deriv(~ sinpi(x^2), "x")}
+#' 
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}
 #' \dontrun{Deriv(f)}
 #' # function (x) 
 #' # 2 * x
-#'
+#' 
 #' \dontrun{f <- function(x, y) sin(x) * cos(y)}
 #' \dontrun{Deriv(f)}
 #' # function (x, y) 
-#' # sin(x) * -sin(y) * t(c(0, 1)) + cos(x) * t(c(1, 0)) *  cos(y)
+#' # c(x = cos(x) * cos(y), y = -(sin(x) * sin(y)))
 #'
 #' \dontrun{f_ <- Deriv(f)}
 #' \dontrun{f_(3, 4)}
 #' #              x         y
-#' # [1,] 0.6471023 0.1068
-#
-#' \dontrun{Deriv(~ f(x, y^2)), "y")}
-#' # 2 * (sin(x) * -sin(y^2) * y)
-#'
+#' # [1,] 0.6471023 0.1068000
+#' 
+#' \dontrun{Deriv(~ f(x, y^2), "y")}
+#' # -(2 * (sin(x) * y * sin(y^2)))
+#' 
 #' \dontrun{Deriv(quote(f(x, y^2)), c("x", "y"))}
-#' # 2 * (sin(x) * -sin(y^2) * y * t(c(0, 1))) + cos(x) * 
-#' #     t(c(1, 0)) * cos(y^2))
-#'
+#' # c(x = cos(x) * cos(y^2), y = -(2 * (sin(x) * y * sin(y^2))))
+#' 
 #' \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 #' # expression(cos(x^2) * (2 * x) * y)
 
