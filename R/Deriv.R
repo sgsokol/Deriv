@@ -148,7 +148,7 @@ mderst <- function(f, x, env) {
 	if (length(x) > 1) {
 		# many variables
 		res <- lapply(x, function(xi) derst(f, xi, env))
-		names(res) <- x; #sprintf('"%s"', x)
+		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	} else {
 		# only one variable to differentiate by
