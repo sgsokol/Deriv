@@ -25,6 +25,7 @@
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
 #'  \item an expression if \code{f} is an expression
+#'  \item a character string if \code{f} is a character string
 #'  \item a language (usually a so called 'call' but may be also a symbol or just a numeric) for other types of \code{f}
 #' }
 #'
@@ -83,7 +84,10 @@
 #' namescape. As their names indicates, they contain tables of derivative and
 #' simplification rules.
 #' To see the list of defined rules do \code{ls(drule)}.
-#' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*d_a*cospi(a)))}.
+#' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))}.
+#' Here, "._1" stands for the "first arguments", "._d1" for the first derivative of the first arguments. For a function that might have more than one argument,
+#' e.g. log(x, base=exp(1)), the drule entry must be a list with one rule
+#' per number of possible arguments. See \code{drule$log} for example.
 #' After that you can derivate expressions with sinpi(x), e.g. \code{Deriv(~ sinpi(x^2), "x")}
 #' 
 #' @examples
@@ -111,10 +115,13 @@
 #' 
 #' \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 #' # expression(cos(x^2) * (2 * x) * y)
+#' 
+#' Deriv("sin(x^2) * y", "x")
+#' "2 * (x * cos(x^2) * y)"
 
 # This wrapper of Deriv_ returns an expression (wrapped up "properly")
 # or call or function depending on type of 'f'
-Deriv <- function(f, x=if (length(find(deparse(substitute(f)))) && is.function(f)) names(formals(f)) else stop("Argument 'f' is not a function, so variable name(s) must be supplied in 'x' argument"), env=if (is.function(f)) environment(f) else parent.frame()) {
+Deriv <- function(f, x=if (length(find(deparse(substitute(f)))) && is.function(f)) names(formals(f)) else stop("First argument is not a function, so variable name(s) must be supplied in the second argument"), env=if (is.function(f)) environment(f) else parent.frame()) {
 	x # referense x here for a possible error message
 	if (is.character(f)) {
 		# f is to parse
@@ -206,21 +213,14 @@ derst <- function(st, x, env) {
 		} else if (is.null(drule[[stch]][[nb_args]])) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
-		if (nb_args <= 3) {
-			lrepl=list(
-				a=st[[2]],
-				d_a=derst(st[[2]], x, env)
-			)
-		}
-		if (nb_args > 1 && nb_args <= 3) {
-			lrepl$b <- st[[3]]
-			lrepl$d_b <- derst(st[[3]], x, env)
-		}
-		if (nb_args > 2 && nb_args <= 3) {
-			lrepl$c <- st[[4]]
-			lrepl$d_c <- derst(st[[4]], x, env)
-		}
-		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], lrepl))))
+		# prepare replacement list ._1 -> first argument, ._d1 -> derivative of the first argument and so on
+		args <- as.list(st[-1])
+		names(args) <- paste("._", seq_len(nb_args), sep="")
+		# which arguments have to be differentiated?
+		dnum <- as.integer(sub("._d", "", unique(grep("._d", getParseData(parse(t=format1(drule[[stch]][[nb_args]])))$text, v=TRUE))))
+		dargs <- lapply(args[dnum], derst, x, env)
+		names(dargs) <- paste("._d", dnum, sep="")
+		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], c(args, dargs)))))
 	} else if (is.function(st)) {
 		# differentiate its body if can get it
 		args <- st[-1]
@@ -247,41 +247,39 @@ derst <- function(st, x, env) {
    # first item in the list correspond to a call with one argument
    # second (if any) for two, third for three. NULL means that with
    # this number of argument this function can not be called
-   drule[["("]] <- list(quote(d_a)) # (a) => omit paranthesis
+   drule[["("]] <- list(quote(._d1)) # (._1) => omit paranthesis
    # linear arithmetics are already handled by dlin
    # exception is maid for unitary plus (it is just omitted)
-   drule[["+"]] <- list(quote(d_a), quote(d_a+d_b)) # +a, a+b
-   #drule[["-"]] <- list(quote(-d_a), quote(d_a-d_b)) # -a, a-b
+   drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
+   #drule[["-"]] <- list(quote(-._d1), quote(._d1-._d2)) # -._1, ._1-._2
    # arithmetic non linear rules
-   drule[["*"]] <- list(NULL, quote(d_a*b+a*d_b)) # a*b
-   drule[["/"]] <- list(NULL, quote(d_a/b-a*d_b/b^2)) # a*b
+   drule[["*"]] <- list(NULL, quote(._d1*._2+._1*._d2)) # ._1*._2
+   drule[["/"]] <- list(NULL, quote(._d1/._2-._1*._d2/._2^2)) # ._1*._2
    # power functions
-   drule[["^"]] <- list(NULL, quote(d_a*b*a^(b-1)+d_b*log(a)*a^b)) # a^b
+   drule[["^"]] <- list(NULL, quote(._d1*._2*._1^(._2-1)+._d2*log(._1)*._1^._2)) # ._1^._2
    # example of recursive call
-   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("a"), 0.5), "a", NULL)) # sqrt(a)
+   #drule[["sqrt"]] <- list(derst(call("^", as.symbol("._1"), 0.5), "._1", NULL)) # sqrt(._1)
    # but we prefer a sqrt() formula
-   drule[["sqrt"]] <- list(quote(0.5*d_a/sqrt(a)))
-   drule[["log"]] <- list(quote(d_a/a), quote(d_a/(a*log(b)))) # log(a), log(a, b)
+   drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
+   drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2)))) # log(._1), log(._1, b)
    drule[["logb"]] <- drule[["log"]]
-   drule[["log2"]] <- list(quote(d_a/(a*log(2))))
-   drule[["log10"]] <- list(quote(d_a/(a*log(10))))
-   drule[["exp"]] <- list(quote(d_a*exp(a)))
+   drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
+   drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
+   drule[["exp"]] <- list(quote(._d1*exp(._1)))
    # trigonometric
-   drule[["sin"]] <- list(quote(d_a*cos(a)))
-   drule[["cos"]] <- list(quote(-d_a*sin(a)))
-   drule[["tan"]] <- list(quote(d_a/cos(a)^2))
-   drule[["asin"]] <- list(quote(d_a/sqrt(1-a^2)))
-   drule[["acos"]] <- list(quote(-d_a/sqrt(1-a^2)))
-   drule[["atan"]] <- list(quote(d_a/(1+a^2)))
+   drule[["sin"]] <- list(quote(._d1*cos(._1)))
+   drule[["cos"]] <- list(quote(-._d1*sin(._1)))
+   drule[["tan"]] <- list(quote(._d1/cos(._1)^2))
+   drule[["asin"]] <- list(quote(._d1/sqrt(1-._1^2)))
+   drule[["acos"]] <- list(quote(-._d1/sqrt(1-._1^2)))
+   drule[["atan"]] <- list(quote(._d1/(1+._1^2)))
    # hyperbolic
-   drule[["sinh"]] <- list(quote(d_a*cosh(a)))
-   drule[["cosh"]] <- list(quote(d_a*sinh(a)))
-   drule[["tanh"]] <- list(quote(d_a*(1-tanh(a)^2)))
-   drule[["asinh"]] <- list(quote(d_a/sqrt(a^2+1)))
-   drule[["acosh"]] <- list(quote(d_a/sqrt(a^2-1)))
-   drule[["atanh"]] <- list(quote(d_a/(1-a^2)))
-   # stats
-   drule[["dnorm"]] <- list(NULL, quote(d_a) )
+   drule[["sinh"]] <- list(quote(._d1*cosh(._1)))
+   drule[["cosh"]] <- list(quote(._d1*sinh(._1)))
+   drule[["tanh"]] <- list(quote(._d1*(1-tanh(._1)^2)))
+   drule[["asinh"]] <- list(quote(._d1/sqrt(._1^2+1)))
+   drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
+   drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
 
    assign("+", `Simplify.+`, envir=simplifications)
    assign("-", `Simplify.-`, envir=simplifications)
