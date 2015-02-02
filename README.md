@@ -12,7 +12,7 @@ In 2014, Andrew has passed the maintenance to Serguei Sokol (sokol at insa-toulo
 Installation
 ------------
 
-    devtools::install_github("sgsokol/Deriv")
+    > devtools::install_github("sgsokol/Deriv")
 
 Usage
 -----
