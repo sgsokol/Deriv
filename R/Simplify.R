@@ -74,95 +74,72 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		return(0)
 	}
 	# group and simplify identical terms
-	apn <- Sumdiff(a)
-	bpn <- Sumdiff(b)
+	alc <- Lincomb(a)
+	blc <- Lincomb(b)
 	if (add)
-		pn <- list(pos=c(apn$pos, bpn$pos), neg=c(apn$neg, bpn$neg))
+		lc <- list(co=c(alc$co, blc$co), it=c(alc$it, blc$it))
 	else
-		pn <- list(pos=c(apn$pos, bpn$neg), neg=c(apn$neg, bpn$pos))
+		lc <- list(co=c(alc$co, -blc$co), it=c(alc$it, blc$it))
 	# group all numerics
-	nu <- list()
-	for (na in c("pos", "neg")) {
-		inum <- sapply(pn[[na]], is.numeric)
-		nu[[na]] <- sum(unlist(pn[[na]][inum]))
-		# remove numerics from main term lists
-		pn[[na]] <- pn[[na]][!inum]
-	}
-	nu <- nu$pos-nu$neg
-	if (nu > 0) {
-		pn$pos <- c(nu, pn$pos)
-	} else if (nu < 0) {
-		pn$neg <- c(-nu, pn$neg)
-	}
+	inum <- sapply(lc$it, `==`, 1)
+	nu <- sum(lc$co[inum])
+	# remove numerics from it list
+	lc$it <- lc$it[!inum]
+	lc$co <- lc$co[!inum]
 	# group identical terms
-	ta <- list()
-	pnch <- list()
-	for (na in c("pos", "neg")) {
-		if (length(pn[[na]]) == 0)
+	itch <- sapply(lc$it, format1)
+	ta <- table(itch) # count of unique entries
+	tsim <- outer(itch, names(ta), `==`)
+	isim <- lapply(seq_len(ncol(tsim)), function(i) which(tsim[,i]))
+	# keep only unique terms
+	irm <- c()
+	for (i in isim) {
+		if (length(i) == 0)
 			next
-		pnch[[na]] <- sapply(pn[[na]], format1)
-		ta[[na]] <- table(pnch[[na]]) # count of unique entries
-		isim <- apply(outer(pnch[[na]], names(ta[[na]]), `==`), 2, function(v) which(v)[1])
-		# keep only unique terms
-		pn[[na]] <- pn[[na]][isim]
-		pnch[[na]] <- pnch[[na]][isim]
+		lc$co[i[1]] <- sum(lc$co[i])
+		irm <- c(irm, i[-1])
 	}
-	# simplify ta for identical terms in pos and neg
-	ijsim <- outer(pnch$neg, pnch$pos, `==`) # each column has at most one TRUE
-	irm=c()
-	for (ipos in seq_along(pnch$pos)) {
-		ineg <- which(ijsim[,ipos])
-		if (length(ineg) == 0)
-			next
-		ta$pos[ipos] <- ta$pos[ipos] - ta$neg[ineg]
-		irm <- c(irm, ineg)
-	}
-	# remove simplified terms from neg
+	# remove grouped terms but first
 	if (length(irm)) {
-		pn$neg <- pn$neg[-irm]
-		ta$neg <- ta$neg[-irm]
+		lc$co <- lc$co[-irm]
+		lc$it <- lc$it[-irm]
+		itch <- itch[irm]
 	}
-	# move negative coefs from pos to neg
-	ineg <- which(ta$pos < 0)
-	if (length(ineg)) {
-		pn$neg <- c(pn$neg, pn$pos[ineg])
-		pn$pos <- pn$pos[-ineg]
-		ta$neg <- c(ta$neg, -ta$pos)
-		ta$pos <- ta$pos[-ineg]
-		pnch$neg <- c(pnch$neg, pnch$pos[ineg])
-		pnch$pos <- pnch$pos[-ineg]
-	}
-	# remove ta==0 in pos
-	inul <- ta$pos == 0
-	pn$pos <- pn$pos[!inul]
-	ta$pos <- ta$pos[!inul]
-	pnch$pos <- pnch$pos[!inul]
 	
-	for (na in c("pos", "neg")) {
-		# where ta > 1, replace term by nb_repeat*term
-		pn[[na]][ta[[na]] > 1] <- lapply(which(ta[[na]] > 1), function(i) Simplify_(call("*", ta[[na]][i], pn[[na]][i])))
+	# remove co==0
+	inul <- lc$co == 0
+	lc$co <- lc$co[!inul]
+	lc$it <- lc$it[!inul]
+	itch <- itch[!inul]
+	if (length(lc$it) == 0) {
+		return(0)
+	}
+	
+	ipn=list(pos=lc$co > 0, neg=lc$co < 0)
+	for (pn in c("pos", "neg")) {
+		# where abs(co) != 1, replace term by nb_repeat*term
+		i <- ipn[[pn]] & abs(lc$co[ipn[[pn]]]) != 1
+		lc$it[i] <- lapply(which(i), function(ii) {
+			e <- lc$it[[ii]]
+			if (is.call(e) && e[[1]] == as.symbol("/") && e[[2]] == 1)
+				e[[2]] <- abs(lc$co[ii])
+			else
+				e <- call("*", abs(lc$co[ii]), e)
+			return(e)
+		})
 	}
 	# form final symbolic expression
-	if (length(pn$pos) == 0 && length(pn$neg) == 0) {
-			return(0)
+	iord <- order(lc$co < 0, itch) # positives first
+	expr <- lc$it[[iord[1]]]
+	sminus <- lc$co[iord[1]] < 0 # all negatives
+		
+	for (i in iord[-1]) {
+		expr <- call(if (sminus || lc$co[i] > 0) "+" else "-", expr, lc$it[[i]])
 	}
-	res=list()
-	for (na in c("pos", "neg")) {
-		if (length(pn[[na]]) == 0)
-			next
-		iord <- order(pnch[[na]])
-		expr <- pn[[na]][[iord[1]]]
-		for (i in iord[-1]) {
-			expr <- call("+", expr, pn[[na]][[i]])
-		}
-		res[[na]] <- expr
-	}
-	if (is.null(res$pos))
-		return(call("-", res$neg))
-	else if (is.null(res$neg))
-		return(res$pos)
+	if (sminus)
+		return(call("-", expr))
 	else
-		return(call("-", res$pos, res$neg))
+		return(expr)
 }
 
 `Simplify.-` <- function(expr)
@@ -439,30 +416,6 @@ is.uplus <- function(e) {
 is.unumeric <- function(e) {
 	# detect if numeric with optional unitary sign(s)
 	return(is.numeric(e) || ((is.uminus(e) || is.uplus(e)) && is.unumeric(e[[2]])))
-}
-Sumdiff <- function(expr) {
-	# Return a list with "pos" as a list of positive terms in a sum
-	# and "neg" as a list of negative terms in a sum
-	if (is.uminus(expr)) {
-		a <- Sumdiff(expr[[2]])
-		list(pos=a$neg, neg=a$pos)
-	} else if (is.uplus(expr)) {
-		Sumdiff(expr[[2]])
-	} else if (is.symbol(expr) || is.numeric(expr)) {
-		if (expr > 0) list(pos=expr) else list(neg=-expr)
-	} else if (is.call(expr) && expr[[1]] == as.symbol("+")) {
-		# recursive call
-		a <- Sumdiff(expr[[2]])
-		b <- Sumdiff(expr[[3]])
-		list(pos=c(a$pos, b$pos), neg=c(a$neg, b$neg))
-	} else if (is.call(expr) && expr[[1]] == as.symbol("-")) {
-		# recursive call
-		a <- Sumdiff(expr[[2]])
-		b <- Sumdiff(expr[[3]])
-		list(pos=c(a$pos, b$neg), neg=c(a$neg, b$pos))
-	} else {
-		list(pos=list(expr))
-	}
 }
 Lincomb <- function(expr) {
 	# decompose sum and diff in linear combibnation of num.coeff*item paires.
