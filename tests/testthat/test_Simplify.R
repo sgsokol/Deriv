@@ -1,6 +1,3 @@
-library(testthat)
-library(Deriv)
-
 context("Symbolic simplifications")
 
 expect_equal_lang=function(t, r) {
@@ -30,3 +27,10 @@ test_that("rational simplifications", {
    expect_equal_lang((a*c*b)/(c*a), b) # multiple simplification (numerator)
    expect_equal_lang((-a*c*b)/(c*a), -b) # multiple negative simplification (numerator)
 })
+test_that("log simplifications", {
+   expect_equal_lang(log(a), log(a)) # no change must occur
+   expect_equal_lang(log(a*b), log(a)+log(b))
+   expect_equal_lang(log(exp(a)), a)
+   expect_equal_lang(log(a^n), n*log(a))
+   expect_equal_lang(log(sqrt(a)), 0.5*log(a))
+}
