@@ -70,7 +70,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		return(if (add) b else call("-", b))
 	} else if (b == 0) {
 		return(a)
-	} else if (a == b && !add) {
+	} else if (format1(a) == format1(b) && !add) {
 		return(0)
 	}
 	# group and simplify identical terms
@@ -88,6 +88,12 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		# remove numerics from main term lists
 		pn[[na]] <- pn[[na]][!inum]
 	}
+	nu <- nu$pos-nu$neg
+	if (nu > 0) {
+		pn$pos <- c(nu, pn$pos)
+	} else if (nu < 0) {
+		pn$neg <- c(-nu, pn$neg)
+	}
 	# group identical terms
 	ta <- list()
 	pnch <- list()
@@ -99,7 +105,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		isim <- apply(outer(pnch[[na]], names(ta[[na]]), `==`), 2, function(v) which(v)[1])
 		# keep only unique terms
 		pn[[na]] <- pn[[na]][isim]
-		pnch[[na]] <- pnch[[na]][-isim]
+		pnch[[na]] <- pnch[[na]][isim]
 	}
 	# simplify ta for identical terms in pos and neg
 	ijsim <- outer(pnch$neg, pnch$pos, `==`) # each column has at most one TRUE
@@ -147,7 +153,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		iord <- order(pnch[[na]])
 		expr <- pn[[na]][[iord[1]]]
 		for (i in iord[-1]) {
-			expr <- call("+", expr, pn$neg[[i]])
+			expr <- call("+", expr, pn[[na]][[i]])
 		}
 		res[[na]] <- expr
 	}
@@ -185,6 +191,8 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		if (sminus) substitute(-b) else b
 	} else if (b == 1) {
 		if (sminus) substitute(-a) else a
+	} else if (div && format1(a) == format1(b)) {
+		if (sminus) -1 else 1
 	} else {
 #browser()
 		# get numerator and denominator for a and b than combine them
@@ -193,10 +201,11 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		if (div) {
 			nd <- list(
 				num=list(b=c(nd_a$num$b, nd_b$den$b),
-				p=c(nd_a$num$p, nd_b$den$p)),
+					p=c(nd_a$num$p, nd_b$den$p)),
 				den=list(b=c(nd_a$den$b, nd_b$num$b),
-				p=c(nd_a$den$p, nd_b$num$p))
+					p=c(nd_a$den$p, nd_b$num$p))
 			)
+			sminus=xor(sminus, xor(nd_a$sminus, nd_b$sminus))
 		} else {
 			nd <- list(
 				num=list(b=c(nd_a$num$b, nd_b$num$b),
@@ -204,6 +213,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 				den=list(b=c(nd_a$den$b, nd_b$den$b),
 				p=c(nd_a$den$p, nd_b$den$p))
 			)
+			sminus=xor(sminus, xor(nd_a$sminus, nd_b$sminus))
 		}
 		# reduce numerics to only one factor
 		fa=list()
@@ -219,10 +229,9 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			} else {
 				fa[[na]] <- 1
 			}
-			# make factors positive
 			if (fa[[na]] < 0) {
+				sminus = !sminus
 				fa[[na]] <- -fa[[na]]
-				sminus <- !sminus
 			}
 		}
 		if (fa$num == 0) {
@@ -284,6 +293,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 				}
 			}
 		}
+#browser()
 		# form symbolic products
 		eprod <- list()
 		for (na in c("num", "den")) {
@@ -293,23 +303,21 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			ize=sapply(nd[[na]]$p, `==`, 0)
 			nd[[na]]$b <- nd[[na]]$b[!ize]
 			nd[[na]]$p <- nd[[na]]$p[!ize]
-			if (length(nd[[na]]$b) == 0)
+			if (length(nd[[na]]$b) == 0 && fa[[na]] == 1)
 				next
-			eprod[[na]] <- if (length(nd[[na]])) Simplify_(call("^", nd[[na]]$b[[1]], nd[[na]]$p[[1]])) else fa[[na]]
-			for (i in 1+seq_along(nd[[na]]$b[-1])) {
-				term <- Simplify_(call("^", nd[[na]]$b[[i]], nd[[na]]$p[[i]]))
-				eprod[[na]] <- call("*", eprod[[na]], term)
-			}
-			if (length(nd[[na]]$b) && fa[[na]] != 1) {
-				eprod[[na]] <- if (fa[[na]] == -1) call("-", eprod[[na]]) else call("*", fa[[na]], eprod[[na]])
+			eprod[[na]] <- if (fa[[na]] != 1) fa[[na]] else NULL
+			for (i in seq_along(nd[[na]]$b)) {
+				p <- nd[[na]]$p[[i]]
+				term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
+				if (is.null(eprod[[na]]))
+					eprod[[na]] <- term # start the sequence
+				else
+					eprod[[na]] <- call("*", eprod[[na]], term)
 			}
 		}
-		eprod$num <- if (is.null(eprod$num)) fa$num else eprod$num
-		if (is.null(eprod$den)) {
-			# we have no denominator
-			expr <- eprod$num
-		} else {
-			expr <- call("/", eprod$num, eprod$den)
+		expr <- if (is.null(eprod$num)) 1 else eprod$num
+		if (!is.null(eprod$den)) {
+			expr <- call("/", expr, eprod$den)
 		}
 		return(if (sminus) substitute(-expr) else expr)
 	}
@@ -357,34 +365,41 @@ Numden <- function(expr) {
 	# divisions. The terms are decomposed in b^p sublists
 	if (is.uminus(expr)) {
 		a=Numden(expr[[2]])
-		a$num$b=c(-1, a$num$b)
-		a$num$p=c(1, a$num$p)
+		a$sminus <- !a$sminus
 		a
 	} else if (is.uplus(expr)) {
 		Numden(expr[[2]])
-	} else if (is.symbol(expr) || is.numeric(expr)) {
-		list(num=list(b=expr, p=1))
+	} else if (is.symbol(expr)) {
+		if (is.numeric(expr)) {
+			sminus <- expr < 0
+			expr <- if (sminus) -expr else expr
+		} else {
+			sminus <- FALSE
+		}
+		list(num=list(b=expr, p=1), sminus=sminus)
 	} else if (expr[[1]] == as.symbol("*")) {
 		# recursive call
 		a=Numden(expr[[2]])
 		b=Numden(expr[[3]])
 		list(num=list(b=c(a$num$b, b$num$b), p=c(a$num$p, b$num$p)),
-			den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)))
+			den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)),
+			sminus=xor(a$sminus, b$sminus))
 	} else if (expr[[1]] == as.symbol("/")) {
 		# recursive call
 		a=Numden(expr[[2]])
 		b=Numden(expr[[3]])
 		list(num=list(b=c(a$num$b, b$den$b), p=c(a$num$p, b$den$p)),
-			den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)))
+			den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)),
+			sminus=xor(a$sminus, b$sminus))
 	} else if (is.call(expr) && expr[[1]] == as.symbol("^")) {
 		if (expr[[3]] < 0) {
 			# make the power look positive
-			list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]))
+			list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]), sminus=FALSE)
 		} else {
-			list(num=list(b=expr[[2]], p=expr[[3]]))
+			list(num=list(b=expr[[2]], p=expr[[3]]), sminus=FALSE)
 		}
 	} else {
-		list(num=list(b=expr, p=1))
+		list(num=list(b=expr, p=1), sminus=FALSE)
 	}
 }
 format1 <- function(expr) {
@@ -410,23 +425,53 @@ Sumdiff <- function(expr) {
 	# Return a list with "pos" as a list of positive terms in a sum
 	# and "neg" as a list of negative terms in a sum
 	if (is.uminus(expr)) {
-		a <- Sumdif(expr[[2]])
+		a <- Sumdiff(expr[[2]])
 		list(pos=a$neg, neg=a$pos)
 	} else if (is.uplus(expr)) {
 		Sumdiff(expr[[2]])
 	} else if (is.symbol(expr) || is.numeric(expr)) {
 		if (expr > 0) list(pos=expr) else list(neg=-expr)
-	} else if (expr[[1]] == as.symbol("+")) {
+	} else if (is.call(expr) && expr[[1]] == as.symbol("+")) {
 		# recursive call
 		a <- Sumdiff(expr[[2]])
 		b <- Sumdiff(expr[[3]])
 		list(pos=c(a$pos, b$pos), neg=c(a$neg, b$neg))
-	} else if (expr[[1]] == as.symbol("-")) {
+	} else if (is.call(expr) && expr[[1]] == as.symbol("-")) {
 		# recursive call
 		a <- Sumdiff(expr[[2]])
 		b <- Sumdiff(expr[[3]])
 		list(pos=c(a$pos, b$neg), neg=c(a$neg, b$pos))
 	} else {
 		list(pos=list(expr))
+	}
+}
+Simplify.log <- function(expr) {
+	if (is.call(expr[[2]])) {
+		if (expr[[2]][[1]] == as.symbol("^")) {
+			p <- expr[[2]][[3]]
+			expr[[2]] <- expr[[2]][[2]]
+			Simplify_(call("*", p, expr))
+		} else if (expr[[2]][[1]] == as.symbol("exp")) {
+			if (length(expr) == 2)
+				expr[[2]][[2]]
+			else
+				Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
+		} else if (expr[[2]][[1]] == as.symbol("*")) {
+			a <- expr
+			a[[2]] <- expr[[2]][[2]]
+			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
+			Simplify_(call("+", Simplify_(a), Simplify_(expr)))
+		} else if (expr[[2]][[1]] == as.symbol("/")) {
+			a <- expr
+			a[[2]] <- expr[[2]][[2]]
+			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
+			Simplify_(call("-", a, expr))
+		} else {
+			expr
+		}
+	} else if (length(expr) == 3 && format1(expr[[2]]) == format1(expr[[3]])) {
+		1
+	} else {
+		expr
 	}
 }
