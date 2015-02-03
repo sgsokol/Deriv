@@ -253,7 +253,7 @@ derst <- function(st, x, env) {
 	#drule[["sqrt"]] <- list(derst(call("^", as.symbol("._1"), 0.5), "._1", NULL)) # sqrt(._1)
 	# but we prefer a sqrt() formula
 	drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
-	drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2)))) # log(._1), log(._1, b)
+	drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2))- ._d2*log(._2, ._1)/(._2*log(._2)))) # log(._1), log(._1, b)
 	drule[["logb"]] <- drule[["log"]]
 	drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
 	drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
@@ -281,4 +281,6 @@ derst <- function(st, x, env) {
 	assign("/", `Simplify./`, envir=simplifications)
 	assign("(", `Simplify.(`, envir=simplifications)
 	assign("^", `Simplify.^`, envir=simplifications)
+	assign("log", `Simplify.log`, envir=simplifications)
+	assign("logb", `Simplify.log`, envir=simplifications)
 }
