@@ -297,15 +297,14 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		# form symbolic products
 		eprod <- list()
 		for (na in c("num", "den")) {
-			if (length(nd[[na]]$b) == 0 && fa[[na]] == 1)
+			if (length(nd[[na]]$b) == 0)
 				next
 			# remove power==0 terms
 			ize=sapply(nd[[na]]$p, `==`, 0)
 			nd[[na]]$b <- nd[[na]]$b[!ize]
 			nd[[na]]$p <- nd[[na]]$p[!ize]
-			if (length(nd[[na]]$b) == 0 && fa[[na]] == 1)
+			if (length(nd[[na]]$b) == 0)
 				next
-			eprod[[na]] <- if (fa[[na]] != 1) fa[[na]] else NULL
 			for (i in seq_along(nd[[na]]$b)) {
 				p <- nd[[na]]$p[[i]]
 				term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
@@ -318,6 +317,26 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		expr <- if (is.null(eprod$num)) 1 else eprod$num
 		if (!is.null(eprod$den)) {
 			expr <- call("/", expr, eprod$den)
+		}
+		# put numeric factor at first place
+		if (fa$num != 1 && fa$den != 1) {
+			# add to both num. and denom.
+			if (!is.null(eprod$den)) {
+				expr[[2]] <- call("*", fa$num, expr[[2]])
+				expr[[3]] <- call("*", fa$den, expr[[3]])
+			} else {
+				expr <- call("/", call("*", fa$num, expr), fa$den)
+			}
+		} else if (fa$num != 1) {
+			if (is.call(expr) && expr[[1]] == as.symbol("/") && expr[[2]] == 1)
+				expr[[2]] <- fa$num
+			else
+				expr <- call("*", fa$num, expr)
+		} else if (fa$den != 1) {
+			if (expr[[1]] == as.symbol("/"))
+				expr[[3]] <- call("*", fa$den, expr[[3]])
+			else
+				expr <- call("/", expr, fa$den)
 		}
 		return(if (sminus) substitute(-expr) else expr)
 	}
@@ -443,6 +462,43 @@ Sumdiff <- function(expr) {
 		list(pos=c(a$pos, b$neg), neg=c(a$neg, b$pos))
 	} else {
 		list(pos=list(expr))
+	}
+}
+Lincomb <- function(expr) {
+	# decompose sum and diff in linear combibnation of num.coeff*item paires.
+	# For numerics, item is 1
+	# numerical factor is supposed to be at first place in products
+	if (is.uminus(expr)) {
+		a <- Lincomb(expr[[2]])
+		a$co=-a$co
+		a
+	} else if (is.uplus(expr)) {
+		Lincomb(expr[[2]])
+	} else if (is.symbol(expr)) {
+		list(it=list(expr), co=1)
+	} else if (is.numeric(expr)) {
+		list(co=expr, it=1)
+	} else if (is.call(expr) && expr[[1]] == as.symbol("+")) {
+		# recursive call
+		a <- Lincomb(expr[[2]])
+		b <- Lincomb(expr[[3]])
+		list(co=c(a$co, b$co), it=c(a$it, b$it))
+	} else if (is.call(expr) && expr[[1]] == as.symbol("-")) {
+		# recursive call
+		a <- Lincomb(expr[[2]])
+		b <- Lincomb(expr[[3]])
+		list(co=c(a$co, -b$co), it=c(a$it, b$it))
+	} else if (is.call(expr) && expr[[1]] == as.symbol("*") && is.numeric(expr[[2]])) {
+		list(co=expr[[2]], it=expr[[3]])
+	} else if (is.call(expr) && expr[[1]] == as.symbol("/")) {
+		if (is.numeric(expr[[2]]))
+			list(it=list(call("/", 1, expr[[3]])), co=expr[[2]])
+		else if (is.call(expr[[2]]) && expr[[2]][[1]] == as.symbol("*") && is.numeric(expr[[2]][[2]]))
+			list(it=list(call("/", expr[[2]][[3]]), expr[[3]]), co=expr[[2]][[2]])
+		else
+			list(co=1, it=list(expr))
+	} else {
+		list(co=1, it=list(expr))
 	}
 }
 Simplify.log <- function(expr) {
