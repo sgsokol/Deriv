@@ -447,7 +447,7 @@ Sumdiff <- function(expr) {
 }
 Simplify.log <- function(expr) {
 	if (is.call(expr[[2]])) {
-		# the arguyment of log is a function
+		# the argument of log is a function
 		if (expr[[2]][[1]] == as.symbol("^")) {
 			p <- expr[[2]][[3]]
 			expr[[2]] <- expr[[2]][[2]]
@@ -458,7 +458,7 @@ Simplify.log <- function(expr) {
 			else
 				Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
 		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
-			expr[[2]] <- expr[[2]][[3]]
+			expr[[2]] <- expr[[2]][[2]]
 			Simplify_(call("*", 0.5, expr))
 		} else if (expr[[2]][[1]] == as.symbol("*")) {
 			a <- expr
