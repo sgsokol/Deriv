@@ -31,7 +31,7 @@ expect_equal_deriv=function(t, r) {
    body(f)=ref
    eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
 }
-test_that("elementary derivations", {
+test_that("elementary functions", {
    expect_equal(Deriv("x", "x"), "1")
    expect_equal(Deriv(quote(x), "x"), 1)
    expect_equal(Deriv(quote((x)), "x"), 1)
@@ -42,4 +42,17 @@ test_that("elementary derivations", {
    expect_equal_deriv(tan(x), 1/cos(x)^2)
    expect_equal_deriv(exp(x), exp(x))
    expect_equal_deriv(log(x), 1/x)
+})
+test_that("chain rule: mult by a const", {
+   expect_equal_deriv(a*x, a)
+   expect_equal_deriv((a*x)**2, 2*a^2*x)
+   expect_equal_deriv((a*x)**n, a*n*(a*x)^(n-1))
+   expect_equal_deriv(sin(a*x), a*cos(a*x))
+   expect_equal_deriv(cos(a*x), -a*sin(a*x))
+   expect_equal_deriv(tan(a*x), a/cos(a*x)^2)
+   expect_equal_deriv(exp(a*x), a*exp(a*x))
+   expect_equal_deriv(log(a*x), 1/x)
+})
+test_that("special cases", {
+   expect_equal_deriv(log(x, x), 0)
 })
