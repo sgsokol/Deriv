@@ -9,8 +9,8 @@ expect_equal_lang=function(t, r) {
 }
 test_that("rational simplifications", {
    expect_equal_lang(a*b, a*b) # no change must occur
-   expect_equal_lang(a*2, a*2) # no change must occur
    expect_equal_lang(a/2, a/2) # no change must occur
+   expect_equal_lang(a*2, 2*a) # numeric first
    expect_equal_lang(a/a, 1) # complete single simplification
    expect_equal_lang(2/2, 1) # complete single numeric simplification
    expect_equal_lang(a*b/(b*a), 1) # complete multiple simplification
@@ -33,4 +33,4 @@ test_that("log simplifications", {
    expect_equal_lang(log(exp(a)), a)
    expect_equal_lang(log(a^n), n*log(a))
    expect_equal_lang(log(sqrt(a)), 0.5*log(a))
-}
+})
