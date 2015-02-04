@@ -132,7 +132,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	if (length(lc$it) == 0) {
 		return(0)
 	}
-browser()
+#browser()
 	ipn=list(pos=lc$co > 0, neg=lc$co < 0)
 	for (pn in c("pos", "neg")) {
 		# where abs(co) != 1, replace term by nb_repeat*term
