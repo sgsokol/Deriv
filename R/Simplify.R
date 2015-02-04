@@ -65,13 +65,25 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	}
 	a <- expr[[2]]
 	b <- expr[[3]]
-
+	sminus <- FALSE
+	
 	if (a == 0) {
 		return(if (add) b else call("-", b))
 	} else if (b == 0) {
 		return(a)
 	} else if (format1(a) == format1(b) && !add) {
 		return(0)
+	} else if (is.uminus(b)) {
+		b <- b[[2]]
+		add <- !add
+		if (!add && is.uminus(a)) {
+			a <- a[[2]]
+			expr <- call("-", call("+", a, b))
+			sminus <- TRUE
+			add <- TRUE
+		} else {
+			expr <- call(if (add) "+" else "-", a, b)
+		}
 	}
 	# group and simplify identical terms
 	alc <- Lincomb(a)
@@ -80,6 +92,8 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 		lc <- list(co=c(alc$co, blc$co), it=c(alc$it, blc$it))
 	else
 		lc <- list(co=c(alc$co, -blc$co), it=c(alc$it, blc$it))
+	if (sminus)
+		lc$co <- -lc$co # sminus is no more used here after
 	# group all numerics
 	inum <- sapply(lc$it, `==`, 1)
 	nu <- sum(lc$co[inum])
@@ -89,6 +103,10 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	# group identical terms
 	itch <- sapply(lc$it, format1)
 	ta <- table(itch) # count of unique entries
+	if (sum(inum) <= 1 && all(ta == 1)) {
+		# nothing to simplify
+		return(expr)
+	}
 	tsim <- outer(itch, names(ta), `==`)
 	isim <- lapply(seq_len(ncol(tsim)), function(i) which(tsim[,i]))
 	# keep only unique terms
@@ -114,7 +132,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	if (length(lc$it) == 0) {
 		return(0)
 	}
-	
+browser()
 	ipn=list(pos=lc$co > 0, neg=lc$co < 0)
 	for (pn in c("pos", "neg")) {
 		# where abs(co) != 1, replace term by nb_repeat*term
@@ -124,15 +142,20 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			if (is.call(e) && e[[1]] == as.symbol("/") && e[[2]] == 1)
 				e[[2]] <- abs(lc$co[ii])
 			else
-				e <- call("*", abs(lc$co[ii]), e)
+				e <- Simplify_(call("*", abs(lc$co[ii]), e))
 			return(e)
 		})
+	}
+	if (nu != 0) {
+		lc$it <- c(lc$it, abs(nu))
+		lc$co <- c(lc$co, sign(nu))
+		itch <- c(itch, format1(abs(nu)))
 	}
 	# form final symbolic expression
 	iord <- order(lc$co < 0, itch) # positives first
 	expr <- lc$it[[iord[1]]]
 	sminus <- lc$co[iord[1]] < 0 # all negatives
-		
+	
 	for (i in iord[-1]) {
 		expr <- call(if (sminus || lc$co[i] > 0) "+" else "-", expr, lc$it[[i]])
 	}
@@ -310,7 +333,7 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 			else
 				expr <- call("*", fa$num, expr)
 		} else if (fa$den != 1) {
-			if (expr[[1]] == as.symbol("/"))
+			if (is.call(expr) && expr[[1]] == as.symbol("/"))
 				expr[[3]] <- call("*", fa$den, expr[[3]])
 			else
 				expr <- call("/", expr, fa$den)
@@ -338,13 +361,16 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	} else if (b == -0.5) {
 		substitute(1/sqrt(a))
 	} else if (is.call(a)) {
-		if (as.character(a[[1]]) == "^") {
+		if (a[[1]] == as.symbol("^")) {
 			# product of exponents
 			b <- Simplify_(call("*", a[[3]], b))
 			a <- a[[2]]
-		} else if (as.character(a[[1]]) == "sqrt") {
+		} else if (a[[1]] == as.symbol("sqrt")) {
 			# divide by 2
 			b <- Simplify_(call("/", b, 2))
+			a <- a[[2]]
+		} else if (a[[1]] == as.symbol("abs") && is.numeric(b) && b%%2 == 0) {
+			# remove abs() for even power
 			a <- a[[2]]
 		}
 		expr[[2]] <- a
@@ -353,6 +379,75 @@ Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
 	} else {
 		expr
 	}
+}
+Simplify.log <- function(expr) {
+	if (is.call(expr[[2]])) {
+		# the argument of log is a function
+		if (expr[[2]][[1]] == as.symbol("^")) {
+			p <- expr[[2]][[3]]
+			expr[[2]] <- expr[[2]][[2]]
+			expr <- Simplify_(call("*", p, expr))
+		} else if (expr[[2]][[1]] == as.symbol("exp")) {
+			if (length(expr) == 2)
+				expr <- expr[[2]][[2]]
+			else
+				expr <- Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
+		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
+			expr[[2]] <- expr[[2]][[2]]
+			expr <- Simplify_(call("*", 0.5, expr))
+		} else if (expr[[2]][[1]] == as.symbol("*")) {
+			a <- expr
+			a[[2]] <- expr[[2]][[2]]
+			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
+			expr <- Simplify_(call("+", a, expr))
+		} else if (expr[[2]][[1]] == as.symbol("/")) {
+			a <- expr
+			a[[2]] <- expr[[2]][[2]]
+			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
+			expr <- Simplify_(call("-", a, expr))
+		} else {
+			expr
+		}
+	}
+	if (is.call(expr) && expr[[1]] == as.symbol("log") && length(expr) == 3 && format1(expr[[2]]) == format1(expr[[3]])) {
+		1
+	} else {
+		expr
+	}
+}
+Simplify.sqrt <- function(expr) {
+	if (is.call(expr[[2]])) {
+		# the argument of sqrt is a function
+		if (expr[[2]][[1]] == as.symbol("^")) {
+			p <- expr[[2]][[3]]
+			Simplify_(call("^",  call("abs", expr[[2]][[2]]), call("/", p, 2)))
+		} else if (expr[[2]][[1]] == as.symbol("exp")) {
+			expr[[2]][[2]] <- Simplify_(call("/", expr[[2]][[2]], 2))
+			expr[[2]]
+		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
+			Simplify_(call("^", expr[[2]][[2]], 0.25))
+		} else if (expr[[2]][[1]] == as.symbol("*") && format1(expr[[2]][[2]]) == format1(expr[[2]][[3]])) {
+			Simplify_(call("abs", expr[[2]][[2]]))
+		} else {
+			expr
+		}
+	} else {
+		expr
+	}
+}
+Simplify.abs <- function(expr) {
+	if (is.uminus(expr[[2]])) {
+		expr[[2]] <- expr[[2]][[2]]
+	} else if (is.call(expr[[2]])) {
+		if (expr[[2]][[1]] == as.symbol("^")) {
+			p <- expr[[2]][[3]]
+			if (is.numeric(p) && p%%2 == 0)
+				expr <- expr[[2]]
+		} else if (expr[[2]][[1]] == as.symbol("exp") || expr[[2]][[1]] == as.symbol("sqrt")) {
+			expr <- expr[[2]]
+		}
+	}
+	expr
 }
 
 Numden <- function(expr) {
@@ -373,26 +468,28 @@ Numden <- function(expr) {
 			sminus <- FALSE
 		}
 		list(num=list(b=expr, p=1), sminus=sminus)
-	} else if (expr[[1]] == as.symbol("*")) {
-		# recursive call
-		a=Numden(expr[[2]])
-		b=Numden(expr[[3]])
-		list(num=list(b=c(a$num$b, b$num$b), p=c(a$num$p, b$num$p)),
-			den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)),
-			sminus=xor(a$sminus, b$sminus))
-	} else if (expr[[1]] == as.symbol("/")) {
-		# recursive call
-		a=Numden(expr[[2]])
-		b=Numden(expr[[3]])
-		list(num=list(b=c(a$num$b, b$den$b), p=c(a$num$p, b$den$p)),
-			den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)),
-			sminus=xor(a$sminus, b$sminus))
-	} else if (is.call(expr) && expr[[1]] == as.symbol("^")) {
-		if (expr[[3]] < 0) {
-			# make the power look positive
-			list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]), sminus=FALSE)
-		} else {
-			list(num=list(b=expr[[2]], p=expr[[3]]), sminus=FALSE)
+	} else if (is.call(expr)) {
+		if (expr[[1]] == as.symbol("*")) {
+			# recursive call
+			a=Numden(expr[[2]])
+			b=Numden(expr[[3]])
+			list(num=list(b=c(a$num$b, b$num$b), p=c(a$num$p, b$num$p)),
+				den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)),
+				sminus=xor(a$sminus, b$sminus))
+		} else if (expr[[1]] == as.symbol("/")) {
+			# recursive call
+			a=Numden(expr[[2]])
+			b=Numden(expr[[3]])
+			list(num=list(b=c(a$num$b, b$den$b), p=c(a$num$p, b$den$p)),
+				den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)),
+				sminus=xor(a$sminus, b$sminus))
+		} else if (expr[[1]] == as.symbol("^")) {
+			if (expr[[3]] < 0) {
+				# make the power look positive
+				list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]), sminus=FALSE)
+			} else {
+				list(num=list(b=expr[[2]], p=expr[[3]]), sminus=FALSE)
+			}
 		}
 	} else {
 		list(num=list(b=expr, p=1), sminus=FALSE)
@@ -431,60 +528,28 @@ Lincomb <- function(expr) {
 		list(it=list(expr), co=1)
 	} else if (is.numeric(expr)) {
 		list(co=expr, it=1)
-	} else if (is.call(expr) && expr[[1]] == as.symbol("+")) {
-		# recursive call
-		a <- Lincomb(expr[[2]])
-		b <- Lincomb(expr[[3]])
-		list(co=c(a$co, b$co), it=c(a$it, b$it))
-	} else if (is.call(expr) && expr[[1]] == as.symbol("-")) {
-		# recursive call
-		a <- Lincomb(expr[[2]])
-		b <- Lincomb(expr[[3]])
-		list(co=c(a$co, -b$co), it=c(a$it, b$it))
-	} else if (is.call(expr) && expr[[1]] == as.symbol("*") && is.numeric(expr[[2]])) {
-		list(co=expr[[2]], it=expr[[3]])
-	} else if (is.call(expr) && expr[[1]] == as.symbol("/")) {
-		if (is.numeric(expr[[2]]))
-			list(it=list(call("/", 1, expr[[3]])), co=expr[[2]])
-		else if (is.call(expr[[2]]) && expr[[2]][[1]] == as.symbol("*") && is.numeric(expr[[2]][[2]]))
-			list(it=list(call("/", expr[[2]][[3]]), expr[[3]]), co=expr[[2]][[2]])
-		else
-			list(co=1, it=list(expr))
+	} else if (is.call(expr)) {
+		if (expr[[1]] == as.symbol("+")) {
+			# recursive call
+			a <- Lincomb(expr[[2]])
+			b <- Lincomb(expr[[3]])
+			list(co=c(a$co, b$co), it=c(a$it, b$it))
+		} else if (expr[[1]] == as.symbol("-")) {
+			# recursive call
+			a <- Lincomb(expr[[2]])
+			b <- Lincomb(expr[[3]])
+			list(co=c(a$co, -b$co), it=c(a$it, b$it))
+		} else if (expr[[1]] == as.symbol("*") && is.numeric(expr[[2]])) {
+			list(co=expr[[2]], it=expr[[3]])
+		} else if (expr[[1]] == as.symbol("/")) {
+			if (is.numeric(expr[[2]]))
+				list(it=list(call("/", 1, expr[[3]])), co=expr[[2]])
+			else if (is.call(expr[[2]]) && expr[[2]][[1]] == as.symbol("*") && is.numeric(expr[[2]][[2]]))
+				list(it=list(call("/", expr[[2]][[3]]), expr[[3]]), co=expr[[2]][[2]])
+			else
+				list(co=1, it=list(expr))
+		}
 	} else {
 		list(co=1, it=list(expr))
-	}
-}
-Simplify.log <- function(expr) {
-	if (is.call(expr[[2]])) {
-		# the argument of log is a function
-		if (expr[[2]][[1]] == as.symbol("^")) {
-			p <- expr[[2]][[3]]
-			expr[[2]] <- expr[[2]][[2]]
-			Simplify_(call("*", p, expr))
-		} else if (expr[[2]][[1]] == as.symbol("exp")) {
-			if (length(expr) == 2)
-				expr[[2]][[2]]
-			else
-				Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
-		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
-			expr[[2]] <- expr[[2]][[2]]
-			Simplify_(call("*", 0.5, expr))
-		} else if (expr[[2]][[1]] == as.symbol("*")) {
-			a <- expr
-			a[[2]] <- expr[[2]][[2]]
-			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
-			Simplify_(call("+", a, expr))
-		} else if (expr[[2]][[1]] == as.symbol("/")) {
-			a <- expr
-			a[[2]] <- expr[[2]][[2]]
-			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
-			Simplify_(call("-", a, expr))
-		} else {
-			expr
-		}
-	} else if (length(expr) == 3 && format1(expr[[2]]) == format1(expr[[3]])) {
-		1
-	} else {
-		expr
 	}
 }
