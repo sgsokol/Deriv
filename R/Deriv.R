@@ -206,6 +206,7 @@ derst <- function(st, x, env) {
 		} else if (is.null(drule[[stch]][[nb_args]])) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
+		# there is a rule!
 		# prepare replacement list ._1 -> first argument, ._d1 -> derivative of the first argument and so on
 		args <- as.list(st[-1])
 		names(args) <- paste("._", seq_len(nb_args), sep="")
@@ -283,4 +284,6 @@ derst <- function(st, x, env) {
 	assign("^", `Simplify.^`, envir=simplifications)
 	assign("log", `Simplify.log`, envir=simplifications)
 	assign("logb", `Simplify.log`, envir=simplifications)
+	assign("sqrt", `Simplify.sqrt`, envir=simplifications)
+	assign("abs", `Simplify.abs`, envir=simplifications)
 }
