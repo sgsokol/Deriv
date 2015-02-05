@@ -1,17 +1,26 @@
-Version 1.1
+Version 2.0
 ===========
 
-* 2015-01-29
+* 2015-02-05
+ - New derivative engine suppresses a need for helper functions like neg.sin()
+ - Derivative table of differetiable functions is completed by trigonometric
+    fucntions and their inverse as well as hyperbolic functions and their inverse
+ - Derivative table admits different rules for a function called with different number of arguments. E.g., log() can be differentiated when called with one or two arguments. In the latter case, the base which can be constant or variable, is different from exp(1))
+ - New syntax in derivative table facilitates adding user defined functions
+    to differentiate. The same function can have several rules of
+    differentiation depending on the number of arguments at the call moment
  - Deriv() is now the only entry point for all expressions to derive. No more need for Deriv.function() which is suppressed
- - In addition to previously possible derivation of functions and expressions, the argument to derive can be submitted as
+ - In addition to previously possible differentiation of functions and expressions, the argument to differentiate can be submitted as
   * character string, e.g. '"x**2"'
   * right hand side of a formula, e.g '~ x**2'
   * quote() call, e.g 'quote(x**2)'
- - Power expression is allowed to have symbolic power, e.g. 'x**n' or 'x^n'
- - Simplifications are pushed further for rational expressions (i.e. having terms united by '*' and/or '/'), all numeric terms are explicitly calculated and identical terms in numerator and denominator are simplified
- - auxiliary functions like neg.sin() or reciprocal() are replaced by their explicit counterparts in the final result
- - added tan() to the table of derivable functions
- - some unit tests are added for Deriv() and Simplfy()(based on testthat package)
+ - Power expression can be differentiated with symbolic power, e.g. 'x**n' or 'x^n'
+ - Simplifications are pushed further for rational expressions (i.e. having terms united by '*' and/or '/'), all numeric terms are explicitly calculated and identical terms in numerator and denominator are simplified, identical factors are regrouped in a power term.
+ - Simplifications are pushed further for linear combinations where
+    identical terms are grouped in one term and their numerical coefficients
+    are summed.
+ - Added some simplifications for log(), exp(), power function, sqrt() and abs()
+ - Some unit tests are added for Deriv() and Simplfy()(based on testthat package)
 
 Version 1.0
 ===========
