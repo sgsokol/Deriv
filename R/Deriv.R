@@ -125,7 +125,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else NA, env=if (is
 		if (is.null(rule) && !fch %in% dlin) {
 			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
 		}
-		return(as.function(c(af, Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env)), envir=env))
+		return(as.function(c(af, Simplify(Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env))), envir=env))
 	} else if (is.na(x[1])) {
 		stop("First argument is not a function, so variable name(s) must be supplied in the second argument")
 	}
@@ -188,7 +188,7 @@ Deriv_ <- function(st, x, env) {
 			# linear case
 			# differentiate all arguments then pass them to the function
 			dargs <- lapply(st[-1], function(a) Simplify_(Deriv_(a, x, env)))
-			return(as.call(c(st[[1]], dargs)))
+			return(Simplify_(as.call(c(st[[1]], dargs))))
 		}
 		nb_args=length(st)-1
 		if (is.null(drule[[stch]])) {
@@ -202,7 +202,7 @@ Deriv_ <- function(st, x, env) {
 			args <- as.list(st[-1])
 			mc <- match.call(ff, st)
 			st <- Simplify_(eval(call("substitute", bf, as.list(mc[-1]))))
-			return(Deriv_(st, x, env))
+			return(Simplify_(Deriv_(st, x, env)))
 		} else if (is.null(drule[[stch]][[nb_args]])) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
@@ -231,7 +231,7 @@ Deriv_ <- function(st, x, env) {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
 		st <- eval(call("substitute", body(ff), args))
-		Deriv_(st, x, env)
+		Simplify_(Deriv_(st, x, env))
 	} else {
 		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
 	}
