@@ -7,7 +7,7 @@
 # }
 #' 
 #' 
-#' @param expr An expression to be simplified, expr cab be
+#' @param expr An expression to be simplified, expr can be
 #' \itemize{
 #'    \item an expression: \code{as.expression(x+x)}
 #'    \item an string: \code{"x+x"}
@@ -19,6 +19,7 @@
 #'  if \code{expr} is a function. This argument is ignored is all other cases.
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
+#' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
 Simplify <- function(expr, env=parent.frame())
 	if (is.expression(expr)) {
 		as.expression(Simplify_(expr[[1]]))
