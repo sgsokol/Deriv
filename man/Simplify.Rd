@@ -7,7 +7,7 @@
 Simplify(expr, env = parent.frame())
 }
 \arguments{
-\item{expr}{An expression to be simplified, expr cab be
+\item{expr}{An expression to be simplified, expr can be
 \itemize{
    \item an expression: \code{as.expression(x+x)}
    \item an string: \code{"x+x"}
@@ -25,6 +25,9 @@ A simplified expression. The result is of the same type as
 }
 \description{
 Symbollic simplification of an expression or function
+}
+\details{
+An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
 }
 \concept{
 symbolic simplification
