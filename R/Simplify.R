@@ -1,9 +1,55 @@
-# Simplify.R -- symbolic simplification
-# written by Andrew Clausen <clausen@econ.upenn.edu> in 2007
-# thanks to a bug fix from Mark Reid <mark.reid@anu.edu.au> in 21/2/2009
-#
-# This isn't a serious attempt at simplification code.  It just does some
-# obvious things like 0 + x => x.  It was written to support Deriv.R.
+#' @name Simplify
+#' @title Symbollic simplification of an expression or function
+#' @aliases Simplify simplifications
+#' @concept symbolic simplification
+# \usage{
+# Simplify(expr, env=parent.frame())
+# }
+#' 
+#' 
+#' @param expr An expression to be simplified, expr cab be
+#' \itemize{
+#'    \item an expression: \code{as.expression(x+x)}
+#'    \item an string: \code{"x+x"}
+#'    \item a function: \code{function(x) x+x}
+#'    \item a right hand side of a formula: \code{~x+x}
+#'    \item a language: \code{quote(x+x)}
+#' }
+#' @param env An environment in wich a simplified function is created
+#'  if \code{expr} is a function. This argument is ignored is all other cases.
+#' @return A simplified expression. The result is of the same type as
+#'  \code{expr} except for formula, where a language is returned.
+Simplify <- function(expr, env=parent.frame())
+	if (is.expression(expr)) {
+		as.expression(Simplify_(expr[[1]]))
+	} else if (is.function(expr)) {
+		as.function(c(as.list(formals(expr)),
+			Simplify_(body(expr))),
+			envir=env)
+	} else if (is.call(expr) && expr[[1]] == as.symbol("~")) {
+		Simplify_(expr[[length(expr)]])
+	} else if (is.character(expr)) {
+		format1(Simplify_(parse(text=expr)[[1]]))
+	} else {
+		Simplify_(expr)
+	}
+#' @name format1
+#' @title Wrapper for base::format() function
+# \usage{
+# format1(expr)
+# }
+#' 
+#' 
+#' @param expr An expression or symbol or language to be converted to a string.
+#' @return A character vector of length 1 contrary to base::format() which
+#'  can split its output over several lines.
+format1 <- function(expr) {
+	res <- if (is.symbol(expr)) as.character(expr) else format(expr)
+	if (length(res) > 1) {
+		res=paste(res, collapse="")
+	}
+	return(res)
+}
 
 Simplify_ <- function(expr)
 {
@@ -33,16 +79,6 @@ Simplify_ <- function(expr)
 	}
 }
 
-Simplify <- function(expr)
-	as.expression(Simplify_(expr[[1]]))
-
-Simplify.function <- function(f, x=names(formals(f)), env=parent.frame())
-{
-	stopifnot(is.function(f))
-	as.function(c(as.list(formals(f)),
-			Simplify_(body(f))),
-			envir=env)
-}
 
 # in what follows no need to Simplify_ args neither to check if
 # all arguments are unumeric. It is done in upper Simplify_()
@@ -490,17 +526,12 @@ Numden <- function(expr) {
 			} else {
 				list(num=list(b=expr[[2]], p=expr[[3]]), sminus=FALSE)
 			}
+		} else {
+			list(num=list(b=expr, p=1), sminus=FALSE)
 		}
 	} else {
 		list(num=list(b=expr, p=1), sminus=FALSE)
 	}
-}
-format1 <- function(expr) {
-	res <- if (is.symbol(expr)) as.character(expr) else format(expr)
-	if (length(res) > 1) {
-		res=paste(res, collapse="")
-	}
-	return(res)
 }
 is.uminus <- function(e) {
 	# detect if e is unitary minus, e.g. "-a"
@@ -548,8 +579,23 @@ Lincomb <- function(expr) {
 				list(it=list(call("/", expr[[2]][[3]]), expr[[3]]), co=expr[[2]][[2]])
 			else
 				list(co=1, it=list(expr))
+		} else {
+			list(co=1, it=list(expr))
 		}
 	} else {
 		list(co=1, it=list(expr))
 	}
 }
+
+simplifications <- new.env()
+
+assign("+", `Simplify.+`, envir=simplifications)
+assign("-", `Simplify.-`, envir=simplifications)
+assign("*", `Simplify.*`, envir=simplifications)
+assign("/", `Simplify./`, envir=simplifications)
+assign("(", `Simplify.(`, envir=simplifications)
+assign("^", `Simplify.^`, envir=simplifications)
+assign("log", `Simplify.log`, envir=simplifications)
+assign("logb", `Simplify.log`, envir=simplifications)
+assign("sqrt", `Simplify.sqrt`, envir=simplifications)
+assign("abs", `Simplify.abs`, envir=simplifications)
