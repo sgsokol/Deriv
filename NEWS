@@ -10,6 +10,7 @@ Version 2.0
     to differentiate. The same function can have several rules of
     differentiation depending on the number of arguments at the call moment
  - Deriv() is now the only entry point for all expressions to derive. No more need for Deriv.function() which is suppressed
+ - It is now possible to pass primitive function as first argument, e.g. Deriv(sin)
  - In addition to previously possible differentiation of functions and expressions, the argument to differentiate can be submitted as
   * character string, e.g. '"x**2"'
   * right hand side of a formula, e.g '~ x**2'
