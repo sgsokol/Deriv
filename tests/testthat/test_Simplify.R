@@ -42,3 +42,7 @@ test_that("sqrt simplifications", {
    expect_equal_lang(sqrt(a^n), abs(a)^(n/2))
    expect_equal_lang(sqrt(sqrt(a)),a^0.25)
 })
+test_that("abs simplifications", {
+   expect_equal_lang(abs(a), abs(a)) # no change must occur
+   expect_equal_lang(abs(a*a), a^2)
+})
