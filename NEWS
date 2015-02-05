@@ -21,7 +21,7 @@ Version 2.0
     identical terms are grouped in one term and their numerical coefficients
     are summed.
  - Added some simplifications for log(), exp(), power function, sqrt() and abs()
- - Some unit tests are added for Deriv() and Simplfy()(based on testthat package)
+ - Some unit tests are added for Deriv() and Simplfy() (based on testthat package)
 
 Version 1.0
 ===========
