@@ -1,3 +1,10 @@
+Version 2.1
+===========
+
+* 2015-02-??
+ - If not provided, variable names are guessed from an expression to differentiate
+ - Fixed Deriv(`-`)
+
 Version 2.0
 ===========
 
