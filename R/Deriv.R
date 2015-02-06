@@ -3,7 +3,7 @@
 #' @aliases Deriv drule
 #' @concept symbollic differentiation
 # \usage{
-# Deriv(f, x=if (is.function(f)) names(formals(f)) else "", env=if (is.function(f)) environment(f) else parent.frame())
+# Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame())
 # }
 #' 
 #' 
@@ -16,16 +16,15 @@
 #'   \item a language: \code{quote(x**n)}
 #'   \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 #'  }
-#' @param x A character string with variable name(s) with resptect to which
-#'  \code{f} must be differentiated. If \code{f} is a function \code{x} is
-#'  optional andis set to \code{names(formals(f))}. If f is a primitive
-#'  function, x is set to c("x" [, "y"[, "z"]]) depending on the maximal
-#'  number of allowed arguments in drule table. For functions with
-#'  unlimited number of arguments, like sum(), three names are used:
-#'  "x", "y" and "z".
+#' @param x An optiona character vector with variable name(s) with resptect to which
+#'  \code{f} must be differentiated. If not provided, x is guessed from
+#'  \code{names(formals(f))}, if \code{f} is a function, or from all variables in f
+#'  in other cases. If f is a primitive
+#'  function, x is set to \code{names(formals(args(f)))}
 #' @param env An environment where the symbols and functions are searched for.
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
-#'  \code{environment(f)} if \code{f} is a function.
+#'  \code{environment(f)} if \code{f} is a function. For primitive function,
+#'  it is set by default to .GlobalEnv
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
 #'  \item an expression if \code{f} is an expression
@@ -34,11 +33,11 @@
 #' }
 #'
 #' @details
-#' R already contains two differentiation functions: D and deriv.  D does
+#' R already contains two differentiation functions: D and deriv. D does
 #' simple univariate differentiation.  "deriv" uses D do to multivariate
 #' differentiation.  The output of "D" is an expression, whereas the output of
-#' "deriv" is an executable function.
-#
+#' "deriv" can be an executable function.
+#' 
 #' R's existing functions have several limitations.  They can probably be fixed,
 #' but since they are written in C, this would probably require a lot of work.
 #' Limitations include:
@@ -71,14 +70,14 @@
 #' 
 #' Two working environments \code{drule} and \code{simplifications} are
 #' exported in the package namescape.
-#' As their names indicates, they contain tables of derivative and
+#' As their names indicate, they contain tables of derivative and
 #' simplification rules.
 #' To see the list of defined rules do \code{ls(drule)}.
 #' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))}.
 #' Here, "._1" stands for the "first arguments", "._d1" for the first derivative of the first arguments. For a function that might have more than one argument,
 #' e.g. log(x, base=exp(1)), the drule entry must be a list with one rule
 #' per number of possible arguments. See \code{drule$log} for an example to follow.
-#' After adding \code{sinpi} you can derivate expressions like \code{Deriv(~ sinpi(x^2), "x")}
+#' After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
 #' 
 #' @examples
 #'
@@ -106,11 +105,14 @@
 #' \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 #' # expression(cos(x^2) * (2 * x) * y)
 #' 
-#' Deriv("sin(x^2) * y", "x")
+#' Deriv("sin(x^2) * y", "x") # differentiate only by x
 #' "2 * (x * cos(x^2) * y)"
+#' 
+#' Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
+#' "c(x = 2 * (x * cos(x^2) * y), y = sin(x^2))"
 
 # This wrapper of Deriv_ returns an appropriate expression (wrapped up "properly") depending on the type of argument to differentiate
-Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else NA, env=if (is.function(f)) environment(f) else parent.frame()) {
+Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame()) {
 	if (is.null(x)) {
 		# primitive function
 		fch <- deparse(substitute(f))
@@ -126,8 +128,6 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else NA, env=if (is
 			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
 		}
 		return(as.function(c(af, Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env)), envir=env))
-	} else if (is.na(x[1])) {
-		stop("First argument is not a function, so variable name(s) must be supplied in the second argument")
 	}
 	x <- as.character(x)
 	if (any(nchar(x) == 0)) {
