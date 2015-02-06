@@ -6,9 +6,10 @@ Date: 2015-02-??
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
     email="sokol@insa-toulouse.fr"))
-Description: Compared to R functions deriv() and D(), Deriv() admits
+Description: R base solution for symbolic differentiation. Deriv admits
     user-defined function as well as function substitution
-    in arguments of functions to be differentiated.
+    in arguments of functions to be differentiated. Some basic symbolic
+    simplification is part of the work.
 License: GPL (>=3)
 Suggests:
     testthat
