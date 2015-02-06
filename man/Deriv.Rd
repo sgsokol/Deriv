@@ -4,8 +4,9 @@
 \alias{drule}
 \title{Symbollic differentiation of an expression or function}
 \usage{
-Deriv(f, x = if (is.function(f)) names(formals(f)) else NA, env = if
-  (is.function(f)) environment(f) else parent.frame())
+Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
+  (is.character(f)) parse(text = f) else f), env = if (is.function(f))
+  environment(f) else parent.frame())
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -18,17 +19,16 @@ f can be \itemize{
  \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 }}
 
-\item{x}{A character string with variable name(s) with resptect to which
-\code{f} must be differentiated. If \code{f} is a function \code{x} is
-optional andis set to \code{names(formals(f))}. If f is a primitive
-function, x is set to c("x" [, "y"[, "z"]]) depending on the maximal
-number of allowed arguments in drule table. For functions with
-unlimited number of arguments, like sum(), three names are used:
-"x", "y" and "z".}
+\item{x}{An optiona character vector with variable name(s) with resptect to which
+\code{f} must be differentiated. If not provided, x is guessed from
+\code{names(formals(f))}, if \code{f} is a function, or from all variables in f
+in other cases. If f is a primitive
+function, x is set to \code{names(formals(args(f)))}}
 
 \item{env}{An environment where the symbols and functions are searched for.
 Defaults to \code{parent.frame()} for \code{f} expression and to
-\code{environment(f)} if \code{f} is a function.}
+\code{environment(f)} if \code{f} is a function. For primitive function,
+it is set by default to .GlobalEnv}
 }
 \value{
 \itemize{
@@ -42,10 +42,11 @@ Defaults to \code{parent.frame()} for \code{f} expression and to
 Symbollic differentiation of an expression or function
 }
 \details{
-R already contains two differentiation functions: D and deriv.  D does
+R already contains two differentiation functions: D and deriv. D does
 simple univariate differentiation.  "deriv" uses D do to multivariate
 differentiation.  The output of "D" is an expression, whereas the output of
-"deriv" is an executable function.
+"deriv" can be an executable function.
+
 R's existing functions have several limitations.  They can probably be fixed,
 but since they are written in C, this would probably require a lot of work.
 Limitations include:
@@ -69,14 +70,14 @@ for use in optimization problems.
 
 Two working environments \code{drule} and \code{simplifications} are
 exported in the package namescape.
-As their names indicates, they contain tables of derivative and
+As their names indicate, they contain tables of derivative and
 simplification rules.
 To see the list of defined rules do \code{ls(drule)}.
 To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))}.
 Here, "._1" stands for the "first arguments", "._d1" for the first derivative of the first arguments. For a function that might have more than one argument,
 e.g. log(x, base=exp(1)), the drule entry must be a list with one rule
 per number of possible arguments. See \code{drule$log} for an example to follow.
-After adding \code{sinpi} you can derivate expressions like \code{Deriv(~ sinpi(x^2), "x")}
+After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
 }
 \examples{
 \dontrun{f <- function(x) x^2}
@@ -103,8 +104,11 @@ After adding \code{sinpi} you can derivate expressions like \code{Deriv(~ sinpi(
 \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 # expression(cos(x^2) * (2 * x) * y)
 
-Deriv("sin(x^2) * y", "x")
+Deriv("sin(x^2) * y", "x") # differentiate only by x
 "2 * (x * cos(x^2) * y)"
+
+Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
+"c(x = 2 * (x * cos(x^2) * y), y = sin(x^2))"
 }
 \concept{
 symbollic differentiation
