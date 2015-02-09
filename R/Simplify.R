@@ -54,24 +54,19 @@ format1 <- function(expr) {
 
 Simplify_ <- function(expr)
 {
-	if (is.unumeric(expr)) {
-		eval(expr)
-	} else if (is.call(expr)) {
-		args <- lapply(expr[-1], Simplify_)
+	if (is.call(expr)) {
+		args <- lapply(as.list(expr)[-1], Simplify_)
+		expr[-1]=args
 		if (all(sapply(args, is.numeric))) {
 			# if all arguments are numeric, evaluate them
-			return(eval(as.call(c(expr[[1]], args))))
+			return(eval(expr))
 		} else {
 			# is there a rule in the table?
 			sym.name <- as.character(expr[[1]])
-			if (class(try(Simplify.rule <-
-					get(sym.name, envir=simplifications,
-					inherits=FALSE), silent=TRUE))
-					!= "try-error") {
-				expr[-1]=args
+			Simplify.rule <- simplifications[[sym.name]]
+			if (!is.null(Simplify.rule)) {
 				return(Simplify.rule(expr))
 			} else {
-				expr[-1]=args
 				return(expr)
 			}
 		}
@@ -230,6 +225,16 @@ Simplify_ <- function(expr)
 		if (sminus) substitute(-a) else a
 	} else if (div && format1(a) == format1(b)) {
 		if (sminus) -1 else 1
+	} else if (!div && (is.numeric(a) || is.symbol(a)) && is.call(b) && (b[[1]] == as.symbol("+") || b[[1]] == as.symbol("-"))) {
+		# open parenthesis
+		b[[2]] <- call("*", expr[[2]], b[[2]])
+		b[[3]] <- call("*", expr[[2]], b[[3]])
+		Simplify_(b)
+	} else if ((is.numeric(b) || is.symbol(b)) && is.call(a) && (a[[1]] == as.symbol("+") || a[[1]] == as.symbol("-"))) {
+		# open parenthesis
+		a[[2]] <- as.call(c(expr[[1]], a[[2]], b))
+		a[[3]] <- as.call(c(expr[[1]], a[[3]], b))
+		Simplify_(a)
 	} else {
 #browser()
 		# get numerator and denominator for a and b than combine them
@@ -342,7 +347,8 @@ Simplify_ <- function(expr)
 			nd[[na]]$p <- nd[[na]]$p[!ize]
 			if (length(nd[[na]]$b) == 0)
 				next
-			for (i in seq_along(nd[[na]]$b)) {
+			# alphabetic order for bases
+			for (i in order(sapply(nd[[na]]$b, format1))) {
 				p <- nd[[na]]$p[[i]]
 				term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
 				if (is.null(eprod[[na]]))
@@ -486,6 +492,21 @@ Simplify.abs <- function(expr) {
 	}
 	expr
 }
+Simplify.sign <- function(expr) {
+	if (is.uminus(expr[[2]])) {
+		expr[[2]] <- expr[[2]][[2]]
+		expr <- call("-", expr)
+	} else if (is.call(expr[[2]])) {
+		if (expr[[2]][[1]] == as.symbol("^")) {
+			p <- expr[[2]][[3]]
+			if (is.numeric(p) && p%%2 == 0)
+				expr <- 1
+		} else if (expr[[2]][[1]] == as.symbol("exp") || expr[[2]][[1]] == as.symbol("sqrt")) {
+			expr <- 1
+		}
+	}
+	expr
+}
 
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
@@ -600,3 +621,4 @@ assign("log", `Simplify.log`, envir=simplifications)
 assign("logb", `Simplify.log`, envir=simplifications)
 assign("sqrt", `Simplify.sqrt`, envir=simplifications)
 assign("abs", `Simplify.abs`, envir=simplifications)
+assign("sign", `Simplify.sign`, envir=simplifications)
