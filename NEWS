@@ -2,6 +2,9 @@ Version 2.1
 ===========
 
 * 2015-02-??
+ - Added optional use.D parameter
+ - Added abs() and sign() functions to rule table
+ - In manual, added an example for compound function differentiation
  - If not provided, variable names are guessed from an expression to differentiate
  - Fixed Deriv(`-`)
 
