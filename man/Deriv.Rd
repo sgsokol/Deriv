@@ -6,7 +6,7 @@
 \usage{
 Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
   (is.character(f)) parse(text = f) else f), env = if (is.function(f))
-  environment(f) else parent.frame())
+  environment(f) else parent.frame(), use.D = FALSE)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -29,6 +29,8 @@ function, x is set to \code{names(formals(args(f)))}}
 Defaults to \code{parent.frame()} for \code{f} expression and to
 \code{environment(f)} if \code{f} is a function. For primitive function,
 it is set by default to .GlobalEnv}
+
+\item{use.D}{An optional logical (default FALSE), indicates if base::D() must be used for differentiation of basic expressions.}
 }
 \value{
 \itemize{
@@ -65,7 +67,9 @@ So, here are the advantages of this implementation:
  \item Can differentiate function calls:
  \item It's easy to add custom entries to the derivatives table, e.g.
  \item The output is an executable function, which makes it suitable
-for use in optimization problems.
+     for use in optimization problems.
+ \item Compound functions (i.e. piece-wise functions based on if-else operator) can
+     be differentiated (cf. examples section).
 }
 
 Two working environments \code{drule} and \code{simplifications} are
@@ -109,6 +113,11 @@ Deriv("sin(x^2) * y", "x") # differentiate only by x
 
 Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
 "c(x = 2 * (x * cos(x^2) * y), y = sin(x^2))"
+
+# Compound function example (here smoothed abs(x))
+fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
+Deriv("fc(x)", "x")
+"if (abs(x) < h) x/h else sign(x)"
 }
 \concept{
 symbollic differentiation

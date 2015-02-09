@@ -3,7 +3,7 @@
 #' @aliases Deriv drule
 #' @concept symbollic differentiation
 # \usage{
-# Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame())
+# Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE)
 # }
 #' 
 #' 
@@ -25,6 +25,7 @@
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
 #'  \code{environment(f)} if \code{f} is a function. For primitive function,
 #'  it is set by default to .GlobalEnv
+#' @param use.D An optional logical (default FALSE), indicates if base::D() must be used for differentiation of basic expressions.
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
 #'  \item an expression if \code{f} is an expression
@@ -65,7 +66,9 @@
 #'  \item It's easy to add custom entries to the derivatives table, e.g.
 #	drule[["cos"]] <- list(-._d1*sin(._1))
 #'  \item The output is an executable function, which makes it suitable
-#' for use in optimization problems.
+#'      for use in optimization problems.
+#'  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
+#'      be differentiated (cf. examples section).
 #' }
 #' 
 #' Two working environments \code{drule} and \code{simplifications} are
@@ -83,7 +86,7 @@
 #'
 #' \dontrun{f <- function(x) x^2}
 #' \dontrun{Deriv(f)}
-#' # function (x) 
+#' # function (x)
 #' # 2 * x
 #' 
 #' \dontrun{f <- function(x, y) sin(x) * cos(y)}
@@ -110,9 +113,14 @@
 #' 
 #' Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
 #' "c(x = 2 * (x * cos(x^2) * y), y = sin(x^2))"
+#' 
+#' # Compound function example (here smoothed abs(x))
+#' fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
+#' Deriv("fc(x)", "x")
+#' "if (abs(x) < h) x/h else sign(x)"
 
 # This wrapper of Deriv_ returns an appropriate expression (wrapped up "properly") depending on the type of argument to differentiate
-Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame()) {
+Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE) {
 	if (is.null(x)) {
 		# primitive function
 		fch <- deparse(substitute(f))
@@ -127,7 +135,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		if (is.null(rule) && !fch %in% dlin) {
 			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
 		}
-		return(as.function(c(af, Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env)), envir=env))
+		return(as.function(c(af, Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D)), envir=env))
 	}
 	x <- as.character(x)
 	if (any(nchar(x) == 0)) {
@@ -135,22 +143,22 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	}
 	if (is.character(f)) {
 		# f is to parse
-		format1(Deriv_(parse(text=f)[[1]], x, env))
+		format1(Deriv_(parse(text=f)[[1]], x, env, use.D))
 	} else if (is.function(f)) {
 		if (is.primitive(f)) {
 			fch <- deparse(substitute(f))
 		} else {
-			as.function(c(formals(f), Deriv_(body(f), x, env)), envir=env)
+			as.function(c(formals(f), Deriv_(body(f), x, env, use.D)), envir=env)
 		}
 	} else if (is.expression(f)) {
-		as.expression(Deriv_(f[[1]], x, env))
+		as.expression(Deriv_(f[[1]], x, env, use.D))
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
 			# rhs of the formula
-			Deriv_(f[[length(f)]], x, env)
+			Deriv_(f[[length(f)]], x, env, use.D)
 		} else {
 			# plain call derivation
-			Deriv_(f, x, env)
+			Deriv_(f, x, env, use.D)
 		}
 	} else {
 		stop("Invalid type of 'f' for differentiation")
@@ -158,11 +166,11 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 }
 
 # workhorse function doing the main work of differentiation
-Deriv_ <- function(st, x, env) {
+Deriv_ <- function(st, x, env, use.D) {
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	if (length(x) > 1) {
 		# many variables => recursive call on single name
-		res <- lapply(x, function(xi) Deriv_(st, xi, env))
+		res <- lapply(x, function(xi) Deriv_(st, xi, env, use.D))
 		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	}
@@ -187,7 +195,7 @@ Deriv_ <- function(st, x, env) {
 		if (stch %in% dlin) {
 			# linear case
 			# differentiate all arguments then pass them to the function
-			dargs <- lapply(as.list(st)[-1], function(a) Deriv_(a, x, env))
+			dargs <- lapply(as.list(st)[-1], function(a) Deriv_(a, x, env, use.D))
 			return(Simplify_(as.call(c(st[[1]], dargs))))
 		}
 		nb_args=length(st)-1
@@ -201,37 +209,44 @@ Deriv_ <- function(st, x, env) {
 			}
 			args <- as.list(st[-1])
 			mc <- match.call(ff, st)
-			st <- Simplify_(eval(call("substitute", bf, as.list(mc[-1]))))
-			return(Deriv_(st, x, env))
-		} else if (is.null(drule[[stch]][[nb_args]])) {
+			st <- Simplify_(eval(call("substitute", bf, as.list(mc)[-1])))
+			return(Deriv_(st, x, env, use.D))
+		} else if (is.null(drule[[stch]][[nb_args]]) && !use.D) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
 		# there is a rule!
+		if (use.D) {
+			return(Simplify(D(st, x)))
+		}
 		# prepare replacement list ._1 -> first argument, ._d1 -> derivative of the first argument and so on
-		args <- as.list(st[-1])
+		args <- as.list(st)[-1]
 		names(args) <- paste("._", seq_len(nb_args), sep="")
 		# which arguments have to be differentiated?
 		dstr <- format1(drule[[stch]][[nb_args]])
 		ma <- gregexpr("\\._d[1-9][0-9]*", dstr)
 		dgrep <- substring(dstr, ma[[1]], ma[[1]]+attr(ma[[1]], "match.length")-1)
-		dnum <- as.integer(sub("._d", "", unique(dgrep)))
-		dargs <- lapply(args[dnum], Deriv_, x, env)
+		if (any(nchar(dgrep) != 0)) {
+			dnum <- as.integer(sub("._d", "", unique(dgrep)))
+			dargs <- lapply(args[dnum], Deriv_, x, env, use.D)
 #cat("st=", format1(st), "\n", sep="")
 #cat("stch=", stch, "\n", sep="")
 #cat("dgrep=", dgrep, "\n", sep=", ")
 #cat("dstr=", dstr, "\n", sep="")
 #cat("dnum=", dnum, "\n", sep=", ")
-		names(dargs) <- paste("._d", dnum, sep="")
+			names(dargs) <- paste("._d", dnum, sep="")
+		} else {
+			dargs <- NULL
+		}
 		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], c(args, dargs)))))
 	} else if (is.function(st)) {
 		# differentiate its body if can get it
-		args <- st[-1]
+		args <- as.list(st)[-1]
 		names(args)=names(formals(ff))
 		if (is.null(names(args))) {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
 		st <- eval(call("substitute", body(ff), args))
-		Simplify_(Deriv_(st, x, env))
+		Deriv_(st, x, env, use.D)
 	} else {
 		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
 	}
@@ -256,7 +271,7 @@ drule[["/"]] <- list(NULL, quote(._d1/._2-._1*._d2/._2^2)) # ._1*._2
 # power functions
 drule[["^"]] <- list(NULL, quote(._d1*._2*._1^(._2-1)+._d2*log(._1)*._1^._2)) # ._1^._2
 # example of recursive call
-#drule[["sqrt"]] <- list(Deriv_(call("^", as.symbol("._1"), 0.5), "._1", NULL)) # sqrt(._1)
+#drule[["sqrt"]] <- list(Deriv(call("^", as.symbol("._1"), 0.5), "._1", NULL, use.D)) # sqrt(._1)
 # but we prefer a sqrt() formula
 drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
 drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2))- ._d2*log(._2, ._1)/(._2*log(._2)))) # log(._1), log(._1, b)
@@ -280,3 +295,6 @@ drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
 drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
 # code control
 drule[["if"]] <- list(NULL, quote(if (._1) ._d2), quote(if (._1) ._d2 else ._d3))
+# particular functions
+drule[["abs"]] <- list(quote(._d1*sign(._1)))
+drule[["sign"]] <- list(0)

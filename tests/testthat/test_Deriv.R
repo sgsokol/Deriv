@@ -1,4 +1,4 @@
-context("Symbolic derivation rules")
+context("Symbolic differentiation rules")
 f=function(x) {} # empty place holder
 
 expect_equal_deriv <- function(t, r) {
@@ -41,6 +41,8 @@ test_that("elementary functions", {
    expect_equal_deriv(tan(x), 1/cos(x)^2)
    expect_equal_deriv(exp(x), exp(x))
    expect_equal_deriv(log(x), 1/x)
+   expect_equal_deriv(abs(x), sign(x))
+   expect_equal_deriv(sign(x), quote(0))
 })
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
@@ -59,6 +61,7 @@ test_that("special cases", {
 fsq <- function(x) x^2
 fsc <- function(x, y) sin(x) * cos(y)
 f_ <- Deriv(fsc)
+fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
 test_that("doc examples", {
    expect_equal_format1(Deriv(fsq), function (x) 2 * x)
    expect_equal_format1(Deriv(fsc), function (x, y) c(x = cos(x) * cos(y), y = -(sin(x) * sin(y))))
@@ -67,4 +70,8 @@ test_that("doc examples", {
    expect_equal(Deriv(quote(fsc(x, y^2)), c("x", "y")), quote(c(x = cos(x) * cos(y^2), y = -(2 * (sin(x) * y * sin(y^2))))))
    expect_equal(Deriv(expression(sin(x^2) * y), "x"), expression(2 * (x * cos(x^2) * y)))
    expect_equal(Deriv("sin(x^2) * y", "x"), "2 * (x * cos(x^2) * y)")
+   expect_equal(Deriv(fc, "x"), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
 })
+#' fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
+#' Deriv("fc(x)", "x")
+#' "if (abs(x) < h) x/h else sign(x)"
