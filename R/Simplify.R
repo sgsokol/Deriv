@@ -507,6 +507,15 @@ Simplify.sign <- function(expr) {
 	}
 	expr
 }
+Simplify.if <- function(expr) {
+	cond <- expr[[2]]
+	if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!!cond)) {
+		expr <- expr[[3]]
+	} else if (length(expr) == 4 && (is.logical(cond) || is.numeric(cond)) && isTRUE(!cond)) {
+		expr <- expr[[4]]
+	}
+	expr
+}
 
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
@@ -622,3 +631,4 @@ assign("logb", `Simplify.log`, envir=simplifications)
 assign("sqrt", `Simplify.sqrt`, envir=simplifications)
 assign("abs", `Simplify.abs`, envir=simplifications)
 assign("sign", `Simplify.sign`, envir=simplifications)
+assign("if", `Simplify.if`, envir=simplifications)
