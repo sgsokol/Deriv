@@ -20,7 +20,11 @@
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
-Simplify <- function(expr, env=parent.frame())
+Simplify <- function(expr, env=parent.frame()) {
+	te <- try(expr, silent=TRUE)
+	if (inherits(te, "try-error")) {
+		expr <- substitute(expr)
+	}
 	if (is.expression(expr)) {
 		as.expression(Simplify_(expr[[1]]))
 	} else if (is.function(expr)) {
@@ -34,6 +38,8 @@ Simplify <- function(expr, env=parent.frame())
 	} else {
 		Simplify_(expr)
 	}
+}
+
 #' @name format1
 #' @title Wrapper for base::format() function
 # \usage{
@@ -511,8 +517,12 @@ Simplify.if <- function(expr) {
 	cond <- expr[[2]]
 	if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!!cond)) {
 		expr <- expr[[3]]
-	} else if (length(expr) == 4 && (is.logical(cond) || is.numeric(cond)) && isTRUE(!cond)) {
-		expr <- expr[[4]]
+	} else if (length(expr) == 4) {
+		if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!cond)) {
+			expr <- expr[[4]]
+		} else if (format1(expr[[3]]) == format1(expr[[4]])) {
+			expr <- expr[[3]]
+		}
 	}
 	expr
 }
