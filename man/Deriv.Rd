@@ -82,6 +82,11 @@ Here, "._1" stands for the "first arguments", "._d1" for the first derivative of
 e.g. log(x, base=exp(1)), the drule entry must be a list with one rule
 per number of possible arguments. See \code{drule$log} for an example to follow.
 After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
+
+NB. In abs() and sign() function, singularity treatment at point 0 is left to user's care.
+
+NB2. In Bessel functions, derivatives are calculated only by the first argument,
+     not by the "nu" argument which is supposed to be constant.
 }
 \examples{
 \dontrun{f <- function(x) x^2}

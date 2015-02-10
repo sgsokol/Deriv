@@ -82,6 +82,10 @@
 #' per number of possible arguments. See \code{drule$log} for an example to follow.
 #' After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
 #' 
+#' NB. In abs() and sign() function, singularity treatment at point 0 is left to user's care.
+#' 
+#' NB2. In Bessel functions, derivatives are calculated only by the first argument,
+#'      not by the "nu" argument which is supposed to be constant.
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}
@@ -145,10 +149,15 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		# f is to parse
 		format1(Deriv_(parse(text=f)[[1]], x, env, use.D))
 	} else if (is.function(f)) {
-		if (is.primitive(f)) {
+		b <- body(f)
+		if (is.call(b) && b[[1]] == as.symbol(".Internal")) {
 			fch <- deparse(substitute(f))
+			if (fch %in% dlin || !is.null(drule[[fch]]))
+				as.function(c(formals(f), Deriv_(as.call(c(substitute(f), lapply(x, as.symbol))), x, env, use.D)), envir=env)
+			else
+				stop(sprintf("Internal function '%s()' is not in derivative table.", fch))
 		} else {
-			as.function(c(formals(f), Deriv_(body(f), x, env, use.D)), envir=env)
+			as.function(c(formals(f), Deriv_(b, x, env, use.D)), envir=env)
 		}
 	} else if (is.expression(f)) {
 		as.expression(Deriv_(f[[1]], x, env, use.D))
@@ -209,7 +218,7 @@ Deriv_ <- function(st, x, env, use.D) {
 			}
 			args <- as.list(st[-1])
 			mc <- match.call(ff, st)
-			st <- Simplify_(eval(call("substitute", bf, as.list(mc)[-1])))
+			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])))
 			return(Deriv_(st, x, env, use.D))
 		} else if (is.null(drule[[stch]][[nb_args]]) && !use.D) {
 			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
@@ -237,7 +246,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		} else {
 			dargs <- NULL
 		}
-		return(Simplify_(eval(call("substitute", drule[[stch]][[nb_args]], c(args, dargs)))))
+		return(Simplify_(do.call("substitute", list(drule[[stch]][[nb_args]], c(args, dargs)))))
 	} else if (is.function(st)) {
 		# differentiate its body if can get it
 		args <- as.list(st)[-1]
@@ -245,7 +254,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		if (is.null(names(args))) {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
-		st <- eval(call("substitute", body(ff), args))
+		st <- do.call("substitute", list(body(ff), args))
 		Deriv_(st, x, env, use.D)
 	} else {
 		stop("Invalid type of 'st' argument. It must be numeric, symbol or a call.")
@@ -255,7 +264,7 @@ Deriv_ <- function(st, x, env, use.D) {
 drule <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
-dlin=c("-", "c", "t", "sum")
+dlin=c("-", "c", "t", "sum", "cbind", "rbind")
 
 # first item in the list correspond to a call with one argument
 # second (if any) for two, third for three. NULL means that with
@@ -286,6 +295,10 @@ drule[["tan"]] <- list(quote(._d1/cos(._1)^2))
 drule[["asin"]] <- list(quote(._d1/sqrt(1-._1^2)))
 drule[["acos"]] <- list(quote(-._d1/sqrt(1-._1^2)))
 drule[["atan"]] <- list(quote(._d1/(1+._1^2)))
+drule[["atan2"]] <- list(NULL, quote((._d1*._2-._d2*._1)/(._1^2+._2^2)))
+drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))
+drule[["cospi"]] <- list(quote(-pi*._d1*sinpi(._1)))
+drule[["tanpi"]] <- list(quote(pi*._d1/cospi(._1)^2))
 # hyperbolic
 drule[["sinh"]] <- list(quote(._d1*cosh(._1)))
 drule[["cosh"]] <- list(quote(._d1*sinh(._1)))
@@ -295,6 +308,28 @@ drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
 drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
 # code control
 drule[["if"]] <- list(NULL, quote(if (._1) ._d2), quote(if (._1) ._d2 else ._d3))
-# particular functions
+# sign depending functions
 drule[["abs"]] <- list(quote(._d1*sign(._1)))
 drule[["sign"]] <- list(0)
+# special functions
+drule[["besselI"]] <- list(NULL,
+	quote(if (._2 == 0) -._d1*besselI(._1, 1) else 0.5*._d1*(besselI(._1, ._2-1) - besselI(._1, ._2+1))),
+	quote(if (._2 == 0) -._d1*besselI(._1, 1, ._3) else 0.5*._d1*(besselI(._1, ._2-1, ._3) - besselI(._1, ._2+1, ._3)))
+)
+drule[["besselK"]] <- list(NULL,
+	quote(if (._2 == 0) -._d1*besselK(._1, 1) else 0.5*._d1*(besselK(._1, ._2-1) - besselK(._1, ._2+1))),
+	quote(if (._2 == 0) -._d1*besselK(._1, 1, ._3) else 0.5*._d1*(besselK(._1, ._2-1, ._3) - besselK(._1, ._2+1, ._3)))
+)
+drule[["besselJ"]] <- list(NULL,
+	quote(if (._2 == 0) -._d1*besselJ(._1, 1) else 0.5*._d1*(besselJ(._1, ._2-1) - besselJ(._1, ._2+1)))
+)
+drule[["besselY"]] <- list(NULL,
+	quote(if (._2 == 0) -._d1*besselY(._1, 1) else 0.5*._d1*(besselY(._1, ._2-1) - besselY(._1, ._2+1)))
+)
+drule[["gamma"]] <- list(quote(._d1*gamma(._1)*digamma(._1)))
+drule[["lgamma"]] <- list(quote(._d1*digamma(._1)))
+drule[["digamma"]] <- list(quote(._d1*trigamma(._1)))
+drule[["trigamma"]] <- list(quote(._d1*psigamma(._1, 2L)))
+drule[["psigamma"]] <- list(quote(._d1*psigamma(._1, 1L)), quote(._d1*psigamma(._1, ._2+1L)))
+drule[["beta"]] <- list(NULL, quote(beta(._1, ._2)*(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2))))
+drule[["lbeta"]] <- list(NULL, quote(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2)))
