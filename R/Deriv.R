@@ -122,9 +122,17 @@
 #' fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
 #' Deriv("fc(x)", "x")
 #' "if (abs(x) < h) x/h else sign(x)"
+#' 
+#' # Example of first argument which cannot evaluate (hereafter, xx and yy are supposed to not be defined)
+#' \dontrun{Deriv(xx**2+yy^2)}
+#' # c(xx = 2 * xx, yy = 2 * yy)
 
 # This wrapper of Deriv_ returns an appropriate expression (wrapped up "properly") depending on the type of argument to differentiate
 Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE) {
+	tf <- try(f, silent=TRUE)
+	if (inherits(tf, "try-error")) {
+		f <- substitute(f)
+	}
 	if (is.null(x)) {
 		# primitive function
 		fch <- deparse(substitute(f))
@@ -264,7 +272,7 @@ Deriv_ <- function(st, x, env, use.D) {
 drule <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
-dlin=c("-", "c", "t", "sum", "cbind", "rbind")
+dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
 
 # first item in the list correspond to a call with one argument
 # second (if any) for two, third for three. NULL means that with
@@ -272,7 +280,7 @@ dlin=c("-", "c", "t", "sum", "cbind", "rbind")
 drule[["("]] <- list(quote(._d1)) # (._1) => omit paranthesis
 # linear arithmetics are already handled by dlin
 # exception is maid for unitary plus (it is just omitted)
-drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
+#drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
 #drule[["-"]] <- list(quote(-._d1), quote(._d1-._d2)) # -._1, ._1-._2
 # arithmetic non linear rules
 drule[["*"]] <- list(NULL, quote(._d1*._2+._1*._d2)) # ._1*._2

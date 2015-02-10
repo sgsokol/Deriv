@@ -123,6 +123,10 @@ Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
 fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
 Deriv("fc(x)", "x")
 "if (abs(x) < h) x/h else sign(x)"
+
+# Example of first argument which cannot evaluate (hereafter, xx and yy are supposed to not be defined)
+\dontrun{Deriv(xx**2+yy^2)}
+# c(xx = 2 * xx, yy = 2 * yy)
 }
 \concept{
 symbollic differentiation
