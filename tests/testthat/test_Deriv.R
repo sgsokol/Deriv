@@ -1,31 +1,41 @@
 context("Symbolic differentiation rules")
 f=function(x) {} # empty place holder
 
-expect_equal_deriv <- function(t, r) {
+expect_equal_deriv <- function(t, r, nmvar="x") {
    test=substitute(t)
    ref=substitute(r)
    # compare as language
-   ans=Deriv(test, "x")
+   ans=Deriv(test, nmvar)
    #print(deparse(ans))
    eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(ref))))))
    # compare as string
-   ans=Deriv(format1(test), "x")
+   ans=Deriv(format1(test), nmvar)
    #print(ans)
    eval(bquote(expect_equal(.(ans), format1(quote(.(ref))))))
    # compare as formula
-   ans=Deriv(call("~", test), "x")
+   ans=Deriv(call("~", test), nmvar)
    #print(deparse(ans))
    eval(bquote(expect_equal(format1(quote(.(ans))), format1(quote(.(ref))))))
    # compare as expression
-   ans=Deriv(as.expression(test), "x")
+   ans=Deriv(as.expression(test), nmvar)
    #print(deparse(ans))
    eval(bquote(expect_equal(format1(.(ans)), format1(expression(.(ref))))))
    # compare as function
    body(f)=test
-   ans=Deriv(f, "x")
+   ans=Deriv(f, nmvar)
    #print(deparse(ans))
    body(f)=ref
    eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
+   # compare with central differences
+   x=seq(0.1, 1, len=10)
+   h=1.e-7
+   f1=try(sapply(x-h, function(val) eval(test, list(x=val))), silent=TRUE)
+   if (!inherits(f1, "try-error")) {
+      f2=sapply(x+h, function(val) eval(test, list(x=val)))
+      numder=(f2-f1)/h/2
+      refder=sapply(x, function(val) eval(ref, list(x=val)))
+      expect_equal(numder, refder, tolerance=5.e-9, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
+   }
 }
 expect_equal_format1 <- function(t, r) {
    eval(bquote(expect_equal(format1(.(t)), format1(.(r)))))
@@ -44,6 +54,25 @@ test_that("elementary functions", {
    expect_equal_deriv(abs(x), sign(x))
    expect_equal_deriv(sign(x), 0)
 })
+test_that("special functions", {
+   expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(x) - digamma(x + y)))
+   expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(y) - digamma(x + y)), "y")
+   expect_equal_deriv(besselI(x, 0), -besselI(x, 1))
+   expect_equal_deriv(besselI(x, 1), 0.5 * besselI(x, 0) - 0.5 * besselI(x, 2))
+   expect_equal_deriv(besselI(x, n), if (n == 0) -besselI(x, 1) else 0.5 * besselI(x, n - 1) - 0.5 * besselI(x, n + 1))
+   expect_equal_deriv(besselK(x, 0), -besselK(x, 1))
+   expect_equal_deriv(besselK(x, 1), -(0.5 * besselK(x, 0) + 0.5 * besselK(x, 2)))
+   expect_equal_deriv(besselK(x, 1, TRUE), -(0.5 * besselK(x, 0, TRUE) + 0.5 * besselK(x, 2, TRUE)))
+   expect_equal_deriv(besselK(x, n), if (n == 0) -besselK(x, 1) else 0.5 * besselK(x, n - 1) - 0.5 * besselK(x, n + 1))
+   expect_equal_deriv(besselJ(x, 0), -besselJ(x, 1))
+   expect_equal_deriv(besselJ(x, 1), 0.5 * besselJ(x, 0) - 0.5 * besselJ(x, 2))
+   expect_equal_deriv(besselJ(x, n), if (n == 0) -besselJ(x, 1) else 0.5 * besselJ(x, n - 1) - 0.5 * besselJ(x, n + 1))
+   expect_equal_deriv(besselY(x, 0), -besselY(x, 1))
+   expect_equal_deriv(besselY(x, 1), 0.5 * besselY(x, 0) - 0.5 * besselY(x, 2))
+   expect_equal_deriv(besselY(x, n), if (n == 0) -besselY(x, 1) else 0.5 * besselY(x, n - 1) - 0.5 * besselY(x, n + 1))
+   expect_equal_deriv(gamma(x), digamma(x) * gamma(x))
+   expect_equal_deriv(lgamma(x), digamma(x))
+})
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
    expect_equal_deriv((a*x)**2, 2*(a^2*x))
@@ -58,6 +87,7 @@ test_that("special cases", {
    expect_equal_deriv(log(x, x), 0)
 })
 
+# doc examples
 fsq <- function(x) x^2
 fsc <- function(x, y) sin(x) * cos(y)
 f_ <- Deriv(fsc)

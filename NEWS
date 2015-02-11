@@ -7,6 +7,7 @@ Version 2.1
  - In manual, added an example for compound function differentiation
  - If not provided, variable names are guessed from an expression to differentiate
  - If cannot be evaluted, the first argument of Deriv() and Simplify() is considered as a language expression
+ - In unit tests, added comparison with an estimation by central differences
  - Fixed Deriv(`-`) call
  - Fixed Deriv(f) when f is of type .Internal()
 
