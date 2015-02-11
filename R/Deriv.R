@@ -321,12 +321,12 @@ drule[["abs"]] <- list(quote(._d1*sign(._1)))
 drule[["sign"]] <- list(0)
 # special functions
 drule[["besselI"]] <- list(NULL,
-	quote(if (._2 == 0) -._d1*besselI(._1, 1) else 0.5*._d1*(besselI(._1, ._2-1) - besselI(._1, ._2+1))),
-	quote(if (._2 == 0) -._d1*besselI(._1, 1, ._3) else 0.5*._d1*(besselI(._1, ._2-1, ._3) - besselI(._1, ._2+1, ._3)))
+	quote(if (._2 == 0) ._d1*besselI(._1, 1) else 0.5*._d1*(besselI(._1, ._2-1) + besselI(._1, ._2+1))),
+	quote((if (._2 == 0) ._d1*besselI(._1, 1, ._3) else 0.5*._d1*(besselI(._1, ._2-1, ._3) + besselI(._1, ._2+1, ._3)))-if (._3) besselI(._1, ._2, TRUE) else 0)
 )
 drule[["besselK"]] <- list(NULL,
 	quote(if (._2 == 0) -._d1*besselK(._1, 1) else -0.5*._d1*(besselK(._1, ._2-1) + besselK(._1, ._2+1))),
-	quote(if (._2 == 0) -._d1*besselK(._1, 1, ._3) else -0.5*._d1*(besselK(._1, ._2-1, ._3) + besselK(._1, ._2+1, ._3)))
+	quote((if (._2 == 0) -._d1*besselK(._1, 1, ._3) else -0.5*._d1*(besselK(._1, ._2-1, ._3) + besselK(._1, ._2+1, ._3)))+if (._3) besselK(._1, ._2, TRUE) else 0)
 )
 drule[["besselJ"]] <- list(NULL,
 	quote(if (._2 == 0) -._d1*besselJ(._1, 1) else 0.5*._d1*(besselJ(._1, ._2-1) - besselJ(._1, ._2+1)))
