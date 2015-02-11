@@ -95,7 +95,7 @@
 #' 
 #' \dontrun{f <- function(x, y) sin(x) * cos(y)}
 #' \dontrun{Deriv(f)}
-#' # function (x, y) 
+#' # function (x, y)
 #' # c(x = cos(x) * cos(y), y = -(sin(x) * sin(y)))
 #'
 #' \dontrun{f_ <- Deriv(f)}
@@ -123,7 +123,7 @@
 #' Deriv("fc(x)", "x")
 #' "if (abs(x) < h) x/h else sign(x)"
 #' 
-#' # Example of first argument which cannot evaluate (hereafter, xx and yy are supposed to not be defined)
+#' # Example of first argument which cannot be evaluated (hereafter, xx and yy are supposed to not be defined)
 #' \dontrun{Deriv(xx**2+yy^2)}
 #' # c(xx = 2 * xx, yy = 2 * yy)
 
