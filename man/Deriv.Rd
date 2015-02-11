@@ -6,7 +6,7 @@
 \usage{
 Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
   (is.character(f)) parse(text = f) else f), env = if (is.function(f))
-  environment(f) else parent.frame(), use.D = FALSE)
+  environment(f) else parent.frame(), use.D = FALSE, cache.exp = TRUE)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -30,7 +30,10 @@ Defaults to \code{parent.frame()} for \code{f} expression and to
 \code{environment(f)} if \code{f} is a function. For primitive function,
 it is set by default to .GlobalEnv}
 
-\item{use.D}{An optional logical (default FALSE), indicates if base::D() must be used for differentiation of basic expressions.}
+\item{use.D}{An optional logical (default FALSE), indicates if base::D()
+must be used for differentiation of basic expressions.}
+
+\item{cache.exp}{An optional logical (default TRUE), indicates if final expression must be optimized with cached subexpressions}
 }
 \value{
 \itemize{

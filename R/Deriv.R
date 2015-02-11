@@ -3,7 +3,7 @@
 #' @aliases Deriv drule
 #' @concept symbollic differentiation
 # \usage{
-# Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE)
+# Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
 # }
 #' 
 #' 
@@ -25,7 +25,10 @@
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
 #'  \code{environment(f)} if \code{f} is a function. For primitive function,
 #'  it is set by default to .GlobalEnv
-#' @param use.D An optional logical (default FALSE), indicates if base::D() must be used for differentiation of basic expressions.
+#' @param use.D An optional logical (default FALSE), indicates if base::D()
+#'  must be used for differentiation of basic expressions.
+#' @param cache.exp An optional logical (default TRUE), indicates if final expression must be optimized with cached subexpressions
+#' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
 #'  \item an expression if \code{f} is an expression
@@ -128,7 +131,7 @@
 #' # c(xx = 2 * xx, yy = 2 * yy)
 
 # This wrapper of Deriv_ returns an appropriate expression (wrapped up "properly") depending on the type of argument to differentiate
-Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE) {
+Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE) {
 	tf <- try(f, silent=TRUE)
 	if (inherits(tf, "try-error")) {
 		f <- substitute(f)
@@ -147,7 +150,10 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		if (is.null(rule) && !fch %in% dlin) {
 			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
 		}
-		return(as.function(c(af, Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D)), envir=env))
+		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D)
+		if (cache.exp)
+			res <- Cache(res)
+		return(as.function(c(af, res), envir=env))
 	}
 	x <- as.character(x)
 	if (any(nchar(x) == 0)) {
@@ -155,30 +161,56 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	}
 	if (is.character(f)) {
 		# f is to parse
-		format1(Deriv_(parse(text=f)[[1]], x, env, use.D))
+		res <- Deriv_(parse(text=f)[[1]], x, env, use.D)
+		if (cache.exp)
+			res <- Cache(res)
+		format1(res)
 	} else if (is.function(f)) {
 		b <- body(f)
 		if (is.call(b) && b[[1]] == as.symbol(".Internal")) {
 			fch <- deparse(substitute(f))
-			if (fch %in% dlin || !is.null(drule[[fch]]))
-				as.function(c(formals(f), Deriv_(as.call(c(substitute(f), lapply(x, as.symbol))), x, env, use.D)), envir=env)
-			else
+			if (fch %in% dlin || !is.null(drule[[fch]])) {
+				res <- Deriv_(as.call(c(substitute(f), lapply(x, as.symbol))), x, env, use.D)
+				if (cache.exp)
+					res <- Cache(res)
+				as.function(c(formals(f), res), envir=env)
+			} else {
 				stop(sprintf("Internal function '%s()' is not in derivative table.", fch))
+			}
 		} else {
-			as.function(c(formals(f), Deriv_(b, x, env, use.D)), envir=env)
+			res <- Deriv_(b, x, env, use.D)
+			if (cache.exp)
+				res <- Cache(res)
+			as.function(c(formals(f), res), envir=env)
 		}
 	} else if (is.expression(f)) {
-		as.expression(Deriv_(f[[1]], x, env, use.D))
+		res <- Deriv_(f[[1]], x, env, use.D)
+		if (cache.exp)
+			res <- Cache(res)
+		as.expression(res)
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
 			# rhs of the formula
-			Deriv_(f[[length(f)]], x, env, use.D)
+			res <- Deriv_(f[[length(f)]], x, env, use.D)
+			if (cache.exp)
+				res <- Cache(res)
+			res
 		} else {
 			# plain call derivation
-			Deriv_(f, x, env, use.D)
+			res <- Deriv_(f, x, env, use.D)
+			if (cache.exp)
+				res <- Cache(res)
+			res
 		}
 	} else {
-		stop("Invalid type of 'f' for differentiation")
+		f <- substitute(f)
+		if (length(x) == 0)
+			x <- all.vars(f)
+		res <- Deriv_(f, x, env, use.D)
+		if (cache.exp)
+			res <- Cache(res)
+		res
+		#stop("Invalid type of 'f' for differentiation")
 	}
 }
 

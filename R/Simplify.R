@@ -141,7 +141,7 @@ Simplify_ <- function(expr)
 	# group identical terms
 	itch <- sapply(lc$it, format1)
 	ta <- table(itch) # count of unique entries
-	if (sum(inum) <= 1 && all(ta == 1)) {
+	if (sum(inum) <= 1 && all(ta == 1) && all(lc$co > 0)) {
 		# nothing to simplify
 		return(expr)
 	}
@@ -174,8 +174,8 @@ Simplify_ <- function(expr)
 	ipn=list(pos=lc$co > 0, neg=lc$co < 0)
 	for (pn in c("pos", "neg")) {
 		# where abs(co) != 1, replace term by nb_repeat*term
-		i <- ipn[[pn]] & abs(lc$co[ipn[[pn]]]) != 1
-		lc$it[i] <- lapply(which(i), function(ii) {
+		i <- which(ipn[[pn]] & abs(lc$co) != 1)
+		lc$it[i] <- lapply(i, function(ii) {
 			e <- lc$it[[ii]]
 			if (is.call(e) && e[[1]] == as.symbol("/") && e[[2]] == 1)
 				e[[2]] <- abs(lc$co[ii])
@@ -190,6 +190,7 @@ Simplify_ <- function(expr)
 		itch <- c(itch, format1(abs(nu)))
 	}
 	# form final symbolic expression
+#browser()
 	iord <- order(lc$co < 0, itch) # positives first
 	expr <- lc$it[[iord[1]]]
 	sminus <- lc$co[iord[1]] < 0 # all negatives
@@ -626,6 +627,49 @@ Lincomb <- function(expr) {
 	} else {
 		list(co=1, it=list(expr))
 	}
+}
+
+# return an environement in wich stored subexpressions with
+# an index giving the position of each subexpression in the
+# whole statement st
+Leaves <- function(st, ind="1", res=new.env()) {
+	if (is.call(st)) {
+		res[[ind]] <- format1(st)
+		args <- as.list(st)[-1]
+		l <- lapply(seq_along(args), function(i) leaves(args[[i]], paste(ind, i+1, sep="."), res))
+	}
+	return(res)
+}
+
+# replace repeated subexpressions by cached values
+Cache <- function(st, env=Leaves(st)) {
+	ve <- unlist(as.list(env))
+	ta <- table(ve)
+	ta <- ta[ta > 1]
+	if (length(ta) == 0)
+		return(st)
+	e=call("{") # will store the result code
+	for (sub in names(sort(ta, decreasing=TRUE))) {
+		# get indexes for this subexpression
+		isubs <- names(which(ve == sub))
+		for (i in seq_along(isubs)) {
+			isub <- isubs[i]
+			subst <- parse(t=sprintf("st[[%s]]", gsub("\\.", "]][[", substring(isub, 3))))[[1]]
+			if (i == 1) {
+				esubst <- try(eval(subst), silent=TRUE)
+				if (inherits(esubst, "try-error"))
+					break # was already cached
+				# add subexpression to the final code
+				esub <- as.symbol(sprintf(".e%d", length(e)))
+				e[[length(e)+1]] <- call("<-", esub, esubst)
+			}
+			# replace subexpression in st by .eX
+			do.call(`<-`, list(subst, as.symbol("esub")))
+		}
+	}
+	# the final touch
+	e[[length(e)+1]] <- st
+	return(e)
 }
 
 simplifications <- new.env()
