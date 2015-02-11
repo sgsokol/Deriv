@@ -21,7 +21,7 @@ Main new features include:
    * right hand side of a formula
    * character string
    * plain unevaluated code
-  - few unit tests were added to the package
+ - few unit tests were added to the package
 
 Installation
 ------------
