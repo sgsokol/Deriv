@@ -27,7 +27,10 @@
 #'  it is set by default to .GlobalEnv
 #' @param use.D An optional logical (default FALSE), indicates if base::D()
 #'  must be used for differentiation of basic expressions.
-#' @param cache.exp An optional logical (default TRUE), indicates if final expression must be optimized with cached subexpressions
+#' @param cache.exp An optional logical (default TRUE), indicates if
+#'  final expression must be optimized with cached subexpressions.
+#'  If enabled, repeated calculations are made only once and their
+#'  results stored in cache variables which are then reused.
 #' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function

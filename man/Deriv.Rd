@@ -33,7 +33,10 @@ it is set by default to .GlobalEnv}
 \item{use.D}{An optional logical (default FALSE), indicates if base::D()
 must be used for differentiation of basic expressions.}
 
-\item{cache.exp}{An optional logical (default TRUE), indicates if final expression must be optimized with cached subexpressions}
+\item{cache.exp}{An optional logical (default TRUE), indicates if
+ final expression must be optimized with cached subexpressions.
+ If enabled, repeated calculations are made only once and their
+ results stored in cache variables which are then reused.}
 }
 \value{
 \itemize{

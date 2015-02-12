@@ -636,7 +636,7 @@ Leaves <- function(st, ind="1", res=new.env()) {
 	if (is.call(st)) {
 		res[[ind]] <- format1(st)
 		args <- as.list(st)[-1]
-		l <- lapply(seq_along(args), function(i) leaves(args[[i]], paste(ind, i+1, sep="."), res))
+		l <- lapply(seq_along(args), function(i) Leaves(args[[i]], paste(ind, i+1, sep="."), res))
 	}
 	return(res)
 }
@@ -649,6 +649,7 @@ Cache <- function(st, env=Leaves(st)) {
 	if (length(ta) == 0)
 		return(st)
 	e=call("{") # will store the result code
+	alva=list()
 	for (sub in names(sort(ta, decreasing=TRUE))) {
 		# get indexes for this subexpression
 		isubs <- names(which(ve == sub))
@@ -660,15 +661,32 @@ Cache <- function(st, env=Leaves(st)) {
 				if (inherits(esubst, "try-error"))
 					break # was already cached
 				# add subexpression to the final code
-				esub <- as.symbol(sprintf(".e%d", length(e)))
-				e[[length(e)+1]] <- call("<-", esub, esubst)
+				ie=length(e)
+				estr <- sprintf(".e%d", ie)
+				esub <- as.symbol(estr)
+				e[[ie+1]] <- call("<-", esub, esubst)
+				alva[[estr]] <- all.vars(esubst)
 			}
 			# replace subexpression in st by .eX
 			do.call(`<-`, list(subst, as.symbol("esub")))
 		}
 	}
 	# the final touch
-	e[[length(e)+1]] <- st
+	e[[ie+2]] <- st
+	alva[["end"]] <- all.vars(st)
+	# where .eX are used? If only once, develop, replace and remove it
+	wh <- lapply(seq_along(as.list(e)[-1]), function(i) {
+		it=sprintf(".e%d", i)
+		which(sapply(alva, function(v) any(it == v)))
+	})
+	dere <- sapply(wh, function(it) if (length(it) == 1 && names(it) != "end") it[[1]] else 0)
+	for (i in which(dere != 0)) {
+		idest <- dere[i]+1
+		li <- list()
+		li[[sprintf(".e%d", i)]] <- e[[i+1]][[3]]
+		e[[idest]][[3]] <- do.call("substitute", c(e[[idest]][[3]], list(li)))
+	}
+	e <- e[c(1,which(!dere)+1)]
 	return(e)
 }
 
