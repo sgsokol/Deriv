@@ -30,11 +30,13 @@ expect_equal_deriv <- function(t, r, nmvar="x") {
    x=seq(0.1, 1, len=10)
    h=1.e-7
    f1=try(sapply(x-h, function(val) eval(test, list(x=val))), silent=TRUE)
-   if (!inherits(f1, "try-error")) {
-      f2=sapply(x+h, function(val) eval(test, list(x=val)))
+   f2=try(sapply(x+h, function(val) eval(test, list(x=val))), silent=TRUE)
+   if (!inherits(f1, "try-error") && !inherits(f2, "try-error")) {
       numder=(f2-f1)/h/2
       refder=sapply(x, function(val) eval(ref, list(x=val)))
-      expect_equal(numder, refder, tolerance=5.e-9, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
+      i=is.finite(refder) & is.finite(numder)
+      expect_more_than(sum(i), 0, label=sprintf("length of central diff for %s", format1(test)))
+      expect_equal(numder[i], refder[i], tolerance=5.e-9, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
    }
 }
 expect_equal_format1 <- function(t, r) {
@@ -49,10 +51,22 @@ test_that("elementary functions", {
    expect_equal_deriv(sin(x), cos(x))
    expect_equal_deriv(cos(x), -sin(x))
    expect_equal_deriv(tan(x), 1/cos(x)^2)
+   expect_equal_deriv(asin(x), 1/sqrt(1 - x^2))
+   expect_equal_deriv(acos(x), -(1/sqrt(1 - x^2)))
+   expect_equal_deriv(atan(x), 1/(1+x^2))
+   expect_equal_deriv(atan2(x, y), y/(x^2+y^2))
    expect_equal_deriv(exp(x), exp(x))
+   expect_equal_deriv(expm1(x), exp(x))
    expect_equal_deriv(log(x), 1/x)
+   expect_equal_deriv(log1p(x), 1/(x+1))
    expect_equal_deriv(abs(x), sign(x))
    expect_equal_deriv(sign(x), 0)
+   expect_equal_deriv(sinpi(x), cospi(x)*pi)
+   expect_equal_deriv(cospi(x), -(pi*sinpi(x)))
+   expect_equal_deriv(tanpi(x), pi/cospi(x)**2)
+   expect_equal_deriv(sinh(x), cosh(x))
+   expect_equal_deriv(cosh(x), sinh(x))
+   expect_equal_deriv(tanh(x), 1-tanh(x)^2)
 })
 test_that("special functions", {
    expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(x) - digamma(x + y)))
@@ -82,6 +96,14 @@ test_that("special functions", {
    expect_equal_deriv(besselY(x, n), if (n == 0) -besselY(x, 1) else 0.5 * besselY(x, n - 1) - 0.5 * besselY(x, n + 1))
    expect_equal_deriv(gamma(x), digamma(x) * gamma(x))
    expect_equal_deriv(lgamma(x), digamma(x))
+   expect_equal_deriv(digamma(x), trigamma(x))
+   expect_equal_deriv(trigamma(x), psigamma(x, 2L))
+   expect_equal_deriv(psigamma(x), psigamma(x, 1L))
+   expect_equal_deriv(psigamma(x, n), psigamma(x, n+1L))
+   expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(x) - digamma(x + y)))
+   expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(y) - digamma(x + y)), "y")
+   expect_equal_deriv(lbeta(x, y), digamma(x) - digamma(x + y))
+   expect_equal_deriv(lbeta(x, y), digamma(y) - digamma(x + y), "y")
 })
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
