@@ -330,7 +330,9 @@ drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2))- ._d2*log(._2,
 drule[["logb"]] <- drule[["log"]]
 drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
 drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
+drule[["log1p"]] <- list(quote(._d1/(._1+1)))
 drule[["exp"]] <- list(quote(._d1*exp(._1)))
+drule[["expm1"]] <- list(quote(._d1*exp(._1)))
 # trigonometric
 drule[["sin"]] <- list(quote(._d1*cos(._1)))
 drule[["cos"]] <- list(quote(-._d1*sin(._1)))
