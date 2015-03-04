@@ -103,7 +103,6 @@ Simplify_ <- function(expr)
 	}
 	a <- expr[[2]]
 	b <- expr[[3]]
-	sminus <- FALSE
 	
 	if (a == 0) {
 		return(if (add) b else call("-", b))
@@ -111,97 +110,69 @@ Simplify_ <- function(expr)
 		return(a)
 	} else if (format1(a) == format1(b) && !add) {
 		return(0)
-	} else if (is.uminus(b)) {
-		b <- b[[2]]
-		add <- !add
-		if (!add && is.uminus(a)) {
-			a <- a[[2]]
-			expr <- call("-", call("+", a, b))
-			sminus <- TRUE
-			add <- TRUE
-		} else {
-			expr <- call(if (add) "+" else "-", a, b)
-		}
+	} else if (!is.call(a) && !is.call(b)) {
+		return(expr) # nothing to simplify
 	}
-	# group and simplify identical terms
+	# factorise most repeated terms
 	alc <- Lincomb(a)
 	blc <- Lincomb(b)
-	if (add)
-		lc <- list(co=c(alc$co, blc$co), it=c(alc$it, blc$it))
-	else
-		lc <- list(co=c(alc$co, -blc$co), it=c(alc$it, blc$it))
-	if (sminus)
-		lc$co <- -lc$co # sminus is no more used here after
-	# group all numerics
-	inum <- sapply(lc$it, `==`, 1)
-	nu <- sum(lc$co[inum])
-	# remove numerics from it list
-	lc$it <- lc$it[!inum]
-	lc$co <- lc$co[!inum]
-	# group identical terms
-	itch <- sapply(lc$it, format1)
-	ta <- table(itch) # count of unique entries
-	if (sum(inum) <= 1 && all(ta == 1) && all(lc$co > 0)) {
-		# nothing to simplify
-		return(expr)
+	if (add) {
+		lc <- c(alc, blc)
+	} else {
+		# inverse sminus in b
+		blc <- lapply(blc, function(it) {it$sminus <- !it$sminus; it})
+		lc <- c(alc, blc)
 	}
-	tsim <- outer(itch, names(ta), `==`)
-	isim <- lapply(seq_len(ncol(tsim)), function(i) which(tsim[,i]))
-	# keep only unique terms
-	irm <- c()
-	for (i in isim) {
-		if (length(i) == 0)
-			next
-		lc$co[i[1]] <- sum(lc$co[i])
-		irm <- c(irm, i[-1])
+	# character bases in numerators
+	bnch <- unlist(lapply(lc, function(it) {lapply(it$num$b, format1)}))
+	# index of the lc term for each bnch
+	ilc <- unlist(lapply(seq_along(lc), function(i) {rep(i, length(lc[[i]]$num$b))}))
+	# index of the base in a given term (nd) for each bnch
+	ind <- unlist(lapply(seq_along(lc), function(i) {seq_along(lc[[i]]$num$b)}))
+	ta <- table(bnch)
+	ta <- ta[ta > 1] # keep only repeated bases
+	if (length(ta) == 0)
+		return(expr) # nothing to factorize
+	tsim <- outer(bnch, names(ta), `==`)
+	i_fa <- which.max(ta) # factor candidate
+	i_lc <- ilc[tsim[,i_fa]] # indexes of lc where the factor is present
+	i_nd <- ind[tsim[,i_fa]] # indexes of the factor in nds
+	# see if there are other factor candidates in the same lc terms
+	for (i in seq_along(ta)[-i_fa]) {
+		if (unique(ilc[tsim[,i]]) == i_lc) {
+			i_fa <- c(i_fa, i)
+			i_nd <- cbind(i_nd, ind[tsim[,i]])
+		}
 	}
-	# remove grouped terms but first
-	if (length(irm)) {
-		lc$co <- lc$co[-irm]
-		lc$it <- lc$it[-irm]
-		itch <- itch[irm]
-	}
-	
-	# remove co==0
-	inul <- lc$co == 0
-	lc$co <- lc$co[!inul]
-	lc$it <- lc$it[!inul]
-	itch <- itch[!inul]
-	if (length(lc$it) == 0) {
-		return(0)
+	dim(i_nd) <- c(sum(tsim[,i_fa[1]]), length(i_fa))
+	oi_fa <- order(i_fa)
+	i_fa <- i_fa[oi_fa]
+	i_nd <- i_nd[,oi_fa, drop=FALSE]
+	# we have bases, now get powers of factors to chose the lowest among numeric
+	p_fa <- lapply(i_fa, function(ii_fa) min(sapply(i_lc, function(ii_lc) {p <- lc[[ii_lc]]$num$p[i_nd[i_lc==ii_lc,ii_fa]]; if (is.numeric(p)) p else NA}), na.rm=TRUE))
+	inu <- sapply(p_fa, is.numeric)
+	p_fa <- p_fa[inu]
+	i_fa <- i_fa[inu]
+	# put factors in a dedicated nd: fa_nd
+	# and remove them from original nds
+	fa_nd <- list(num=list(b=list(), p=list()),
+		sminus=FALSE, fa=list(num=1, den=1))
+	for (i in i_fa) {
+		nd <- lc[[i_lc[1]]]$num
+		fa_nd$num$b <- append(fa_nd$num$b, nd$b[[i_nd[1,i]]])
+		fa_nd$num$p <- append(fa_nd$num$p, p_fa[[i]])
+		for (ii_lc in i_lc) {
+			ii_nd <- i_nd[i_lc==ii_lc,i_fa]
+			lc[[ii_lc]]$num$p[ii_nd] <- lapply(lc[[ii_lc]]$num$p[ii_nd], function(it) Simplify_(call("-", it, p_fa[[i]])))
+		}
 	}
 #browser()
-	ipn=list(pos=lc$co > 0, neg=lc$co < 0)
-	for (pn in c("pos", "neg")) {
-		# where abs(co) != 1, replace term by nb_repeat*term
-		i <- which(ipn[[pn]] & abs(lc$co) != 1)
-		lc$it[i] <- lapply(i, function(ii) {
-			e <- lc$it[[ii]]
-			if (is.call(e) && e[[1]] == as.symbol("/") && e[[2]] == 1)
-				e[[2]] <- abs(lc$co[ii])
-			else
-				e <- Simplify_(call("*", abs(lc$co[ii]), e))
-			return(e)
-		})
-	}
-	if (nu != 0) {
-		lc$it <- c(lc$it, abs(nu))
-		lc$co <- c(lc$co, sign(nu))
-		itch <- c(itch, format1(abs(nu)))
-	}
 	# form final symbolic expression
-#browser()
-	iord <- order(lc$co < 0, itch) # positives first
-	expr <- lc$it[[iord[1]]]
-	sminus <- lc$co[iord[1]] < 0 # all negatives
-	
-	for (i in iord[-1]) {
-		expr <- call(if (sminus || lc$co[i] > 0) "+" else "-", expr, lc$it[[i]])
-	}
-	if (sminus)
-		return(call("-", expr))
-	else
-		return(expr)
+	# replace all i_lc by one product of fa_nd and lincomb of the reduced nds
+	fa_nd$num$b <- append(fa_nd$num$b, lc2expr(lc[i_lc]))
+	fa_nd$num$p <- append(fa_nd$num$p, 1)
+	lc <- c(list(fa_nd), lc[-i_lc])
+	return(lc2expr(lc))
 }
 
 `Simplify.-` <- function(expr)
@@ -211,6 +182,11 @@ Simplify_ <- function(expr)
 
 `Simplify.*` <- function(expr, div=FALSE)
 {
+	if (!is.null(attr(expr, "Simplified"))) {
+		return(expr)
+	}
+#print(expr)
+#browser()
 	a <- expr[[2]]
 	b <- expr[[3]]
 	if (is.uminus(a)) {
@@ -232,16 +208,6 @@ Simplify_ <- function(expr)
 		if (sminus) substitute(-a) else a
 	} else if (div && format1(a) == format1(b)) {
 		if (sminus) -1 else 1
-	} else if (!div && (is.numeric(a) || is.symbol(a)) && is.call(b) && (b[[1]] == as.symbol("+") || b[[1]] == as.symbol("-"))) {
-		# open parenthesis
-		b[[2]] <- call("*", expr[[2]], b[[2]])
-		b[[3]] <- call("*", expr[[2]], b[[3]])
-		Simplify_(b)
-	} else if ((is.numeric(b) || is.symbol(b)) && is.call(a) && (a[[1]] == as.symbol("+") || a[[1]] == as.symbol("-"))) {
-		# open parenthesis
-		a[[2]] <- as.call(c(expr[[1]], a[[2]], b))
-		a[[3]] <- as.call(c(expr[[1]], a[[3]], b))
-		Simplify_(a)
 	} else {
 #browser()
 		# get numerator and denominator for a and b than combine them
@@ -266,31 +232,23 @@ Simplify_ <- function(expr)
 		}
 		# reduce numerics to only one factor
 		fa=list()
-		for (na in c("num", "den")) {
-			inu=if (length(nd[[na]]$b)) which(sapply(nd[[na]]$b, is.numeric) &
-				sapply(nd[[na]]$p, is.numeric)) else integer(0)
-			if (length(inu)) {
-				# the power of numerics are always 1 after Simplify_()
-				fa[[na]] <- prod(unlist(nd[[na]]$b[inu]))
-				# remove numerics
-				nd[[na]]$b <- nd[[na]]$b[-inu]
-				nd[[na]]$p <- nd[[na]]$p[-inu]
-			} else {
-				fa[[na]] <- 1
-			}
-			if (fa[[na]] < 0) {
-				sminus = !sminus
-				fa[[na]] <- -fa[[na]]
-			}
+		if (div) {
+			fa$num <- nd_a$fa$num*nd_b$fa$den
+			fa$den <- nd_a$fa$den*nd_b$fa$num
+		} else {
+			fa$num <- nd_a$fa$num*nd_b$fa$num
+			fa$den <- nd_a$fa$den*nd_b$fa$den
 		}
-		if (fa$num == 0) {
-			return(0)
-		}
-		if ((as.integer(fa$num) != fa$num ||
-				as.integer(fa$den) != fa$den) ||
-				fa$num == fa$den || fa$num == -fa$den) {
-			fa$num <- fa$num/fa$den
+		res <- fa$num/fa$den
+		if (as.integer(res) == res) {
+			fa$num <- res
 			fa$den <- 1
+		} else if (fa$den != 1) {
+			res <- fa$den/fa$num
+			if (as.integer(res) == res) {
+				fa$num <- 1
+				fa$den <- res
+			}
 		}
 		# group identical bases by adding their powers
 #browser()
@@ -328,8 +286,14 @@ Simplify_ <- function(expr)
 			if (length(iden)) {
 				# simplify power for this pair
 				ipair <- cbind(ipair, c(inum, iden))
-				nd$num$p[[inum]] <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]))
-				nd$den$p[[iden]] <- 0
+				res <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]))
+				if (res > 0) {
+					nd$num$p[[inum]] <- res
+					nd$den$p[[iden]] <- 0
+				} else {
+					nd$num$p[[inum]] <- 0
+					nd$den$p[[iden]] <- Simplify_(substitute(-res))
+				}
 			}
 		}
 		if (ncol(ipair) > 0) {
@@ -343,52 +307,19 @@ Simplify_ <- function(expr)
 			}
 		}
 #browser()
-		# form symbolic products
-		eprod <- list()
+		# remove power==0 terms
 		for (na in c("num", "den")) {
 			if (length(nd[[na]]$b) == 0)
 				next
-			# remove power==0 terms
 			ize=sapply(nd[[na]]$p, `==`, 0)
 			nd[[na]]$b <- nd[[na]]$b[!ize]
 			nd[[na]]$p <- nd[[na]]$p[!ize]
-			if (length(nd[[na]]$b) == 0)
-				next
-			# alphabetic order for bases
-			for (i in order(sapply(nd[[na]]$b, format1))) {
-				p <- nd[[na]]$p[[i]]
-				term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
-				if (is.null(eprod[[na]]))
-					eprod[[na]] <- term # start the sequence
-				else
-					eprod[[na]] <- call("*", eprod[[na]], term)
-			}
 		}
-		expr <- if (is.null(eprod$num)) 1 else eprod$num
-		if (!is.null(eprod$den)) {
-			expr <- call("/", expr, eprod$den)
-		}
-		# put numeric factor at first place
-		if (fa$num != 1 && fa$den != 1) {
-			# add to both num. and denom.
-			if (!is.null(eprod$den)) {
-				expr[[2]] <- call("*", fa$num, expr[[2]])
-				expr[[3]] <- call("*", fa$den, expr[[3]])
-			} else {
-				expr <- call("/", call("*", fa$num, expr), fa$den)
-			}
-		} else if (fa$num != 1) {
-			if (is.call(expr) && expr[[1]] == as.symbol("/") && expr[[2]] == 1)
-				expr[[2]] <- fa$num
-			else
-				expr <- call("*", fa$num, expr)
-		} else if (fa$den != 1) {
-			if (is.call(expr) && expr[[1]] == as.symbol("/"))
-				expr[[3]] <- call("*", fa$den, expr[[3]])
-			else
-				expr <- call("/", expr, fa$den)
-		}
-		return(if (sminus) substitute(-expr) else expr)
+		nd[["fa"]] <- fa
+		nd[["sminus"]] <- sminus
+		expr <- nd2expr(nd)
+		attr(expr, "Simplified") <- TRUE
+		expr
 	}
 }
 `Simplify./` <- function(expr)
@@ -530,22 +461,26 @@ Simplify.if <- function(expr) {
 
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
+	# "fa" field is for numeric factors in "num" and "den" subfields.
+	# "sminus" is logical for applying or not "-" to the whole expression
 	# Each sublist regroups the language expressions which are not products neither
 	# divisions. The terms are decomposed in b^p sublists
-	if (is.uminus(expr)) {
+	if (!is.null(attr(expr, "nd"))) {
+		attr(expr, "nd")
+	} else if (is.uminus(expr)) {
 		a=Numden(expr[[2]])
 		a$sminus <- !a$sminus
 		a
 	} else if (is.uplus(expr)) {
 		Numden(expr[[2]])
 	} else if (is.symbol(expr)) {
-		if (is.numeric(expr)) {
-			sminus <- expr < 0
-			expr <- if (sminus) -expr else expr
-		} else {
-			sminus <- FALSE
-		}
-		list(num=list(b=expr, p=1), sminus=sminus)
+		list(num=list(b=list(expr), p=1),
+			sminus=FALSE,
+			fa=list(num=1, den=1))
+	} else if (is.numeric(expr)) {
+		sminus <- expr < 0
+		list(fa=list(num=if (sminus) -expr else expr, den=1),
+			sminus=sminus)
 	} else if (is.call(expr)) {
 		if (expr[[1]] == as.symbol("*")) {
 			# recursive call
@@ -553,26 +488,36 @@ Numden <- function(expr) {
 			b=Numden(expr[[3]])
 			list(num=list(b=c(a$num$b, b$num$b), p=c(a$num$p, b$num$p)),
 				den=list(b=c(a$den$b, b$den$b), p=c(a$den$p, b$den$p)),
-				sminus=xor(a$sminus, b$sminus))
+				sminus=xor(a$sminus, b$sminus),
+				fa=list(num=a$fa$num*b$fa$num, den=a$fa$den*b$fa$den))
 		} else if (expr[[1]] == as.symbol("/")) {
 			# recursive call
 			a=Numden(expr[[2]])
 			b=Numden(expr[[3]])
 			list(num=list(b=c(a$num$b, b$den$b), p=c(a$num$p, b$den$p)),
 				den=list(b=c(a$den$b, b$num$b), p=c(a$den$p, b$num$p)),
-				sminus=xor(a$sminus, b$sminus))
+				sminus=xor(a$sminus, b$sminus),
+				fa=list(num=a$fa$num*b$fa$den, den=a$fa$den*b$fa$num))
 		} else if (expr[[1]] == as.symbol("^")) {
 			if (expr[[3]] < 0) {
 				# make the power look positive
-				list(den=list(b=expr[[2]], p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]), sminus=FALSE)
+				list(den=list(b=list(expr[[2]]), p=if (is.numeric(expr[[3]])) -expr[[3]] else expr[[3]][[2]]),
+					sminus=FALSE,
+					fa=list(num=1, den=1))
 			} else {
-				list(num=list(b=expr[[2]], p=expr[[3]]), sminus=FALSE)
+				list(num=list(b=list(expr[[2]]), p=expr[[3]]),
+					sminus=FALSE,
+					fa=list(num=1, den=1))
 			}
 		} else {
-			list(num=list(b=expr, p=1), sminus=FALSE)
+			list(num=list(b=list(expr), p=1),
+				sminus=FALSE,
+				fa=list(num=1, den=1))
 		}
 	} else {
-		list(num=list(b=expr, p=1), sminus=FALSE)
+		list(num=list(b=list(expr), p=1),
+			sminus=FALSE,
+			fa=list(num=1, den=1))
 	}
 }
 is.uminus <- function(e) {
@@ -588,44 +533,24 @@ is.unumeric <- function(e) {
 	return(is.numeric(e) || ((is.uminus(e) || is.uplus(e)) && is.unumeric(e[[2]])))
 }
 Lincomb <- function(expr) {
-	# decompose sum and diff in linear combibnation of num.coeff*item paires.
-	# For numerics, item is 1
-	# numerical factor is supposed to be at first place in products
-	if (is.uminus(expr)) {
-		a <- Lincomb(expr[[2]])
-		a$co=-a$co
-		a
-	} else if (is.uplus(expr)) {
-		Lincomb(expr[[2]])
-	} else if (is.symbol(expr)) {
-		list(it=list(expr), co=1)
-	} else if (is.numeric(expr)) {
-		list(co=expr, it=1)
-	} else if (is.call(expr)) {
+	# decompose expr in a list of product terms (cf Numden)
+	# the sign of each term is determined by the nd$sminus logical item.
+	if (is.call(expr)) {
 		if (expr[[1]] == as.symbol("+")) {
 			# recursive call
-			a <- Lincomb(expr[[2]])
-			b <- Lincomb(expr[[3]])
-			list(co=c(a$co, b$co), it=c(a$it, b$it))
+			c(Lincomb(expr[[2]]), Lincomb(expr[[3]]))
 		} else if (expr[[1]] == as.symbol("-")) {
 			# recursive call
 			a <- Lincomb(expr[[2]])
 			b <- Lincomb(expr[[3]])
-			list(co=c(a$co, -b$co), it=c(a$it, b$it))
-		} else if (expr[[1]] == as.symbol("*") && is.numeric(expr[[2]])) {
-			list(co=expr[[2]], it=expr[[3]])
-		} else if (expr[[1]] == as.symbol("/")) {
-			if (is.numeric(expr[[2]]))
-				list(it=list(call("/", 1, expr[[3]])), co=expr[[2]])
-			else if (is.call(expr[[2]]) && expr[[2]][[1]] == as.symbol("*") && is.numeric(expr[[2]][[2]]))
-				list(it=list(call("/", expr[[2]][[3]]), expr[[3]]), co=expr[[2]][[2]])
-			else
-				list(co=1, it=list(expr))
+			# inverse the sign in b terms
+			b <- lapply(b, function(it) {it$sminus <- !it$sminus; it})
+			c(a, b)
 		} else {
-			list(co=1, it=list(expr))
+			list(Numden(expr))
 		}
 	} else {
-		list(co=1, it=list(expr))
+		list(Numden(expr))
 	}
 }
 
@@ -655,7 +580,7 @@ Cache <- function(st, env=Leaves(st)) {
 		isubs <- names(which(ve == sub))
 		for (i in seq_along(isubs)) {
 			isub <- isubs[i]
-			subst <- parse(t=sprintf("st[[%s]]", gsub("\\.", "]][[", substring(isub, 3))))[[1]]
+			subst <- parse(text=sprintf("st[[%s]]", gsub("\\.", "]][[", substring(isub, 3))))[[1]]
 			if (i == 1) {
 				esubst <- try(eval(subst), silent=TRUE)
 				if (inherits(esubst, "try-error"))
@@ -688,6 +613,78 @@ Cache <- function(st, env=Leaves(st)) {
 	}
 	e <- e[c(1,which(!dere)+1)]
 	return(e)
+}
+nd2expr <- function(nd, sminus=NULL) {
+	# form symbolic products
+	# if sminus is not null, use it instead of the nd's one
+	if (length(nd) == 0)
+		return(0)
+	eprod <- list()
+	for (na in c("num", "den")) {
+		if (length(nd[[na]]$b) == 0)
+			next
+		# alphabetic order for bases, symbols first, then calls
+		for (i in order(sapply(nd[[na]]$b, is.call), sapply(nd[[na]]$b, format1))) {
+			p <- nd[[na]]$p[[i]]
+			if (p == 0)
+				next
+			term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
+			if (is.null(eprod[[na]]))
+				eprod[[na]] <- term # start the sequence
+			else
+				eprod[[na]] <- call("*", eprod[[na]], term)
+		}
+	}
+	expr <- if (is.null(eprod$num)) 1 else eprod$num
+	if (!is.null(eprod$den)) {
+		expr <- call("/", expr, eprod$den)
+	}
+	# put numeric factor at first place
+	fa=nd$fa
+	if (fa$num != 1 && fa$den != 1) {
+		# add to both num. and denom.
+		if (!is.null(eprod$den)) {
+			expr[[2]] <- call("*", fa$num, expr[[2]])
+			expr[[3]] <- call("*", fa$den, expr[[3]])
+		} else {
+			expr <- call("/", call("*", fa$num, expr), fa$den)
+		}
+	} else if (fa$num != 1) {
+		if (is.call(expr) && expr[[1]] == as.symbol("/") && expr[[2]] == 1)
+			expr[[2]] <- fa$num
+		else
+			expr <- call("*", fa$num, expr)
+	} else if (fa$den != 1) {
+		if (is.call(expr) && expr[[1]] == as.symbol("/"))
+			expr[[3]] <- call("*", fa$den, expr[[3]])
+		else
+			expr <- call("/", expr, fa$den)
+	}
+	expr <- if ((!is.null(sminus) && sminus) || (is.null(sminus) && nd$sminus)) substitute(-expr) else expr
+#print(sprintf("nd->%s", format1(expr)))
+	return(expr)
+}
+lc2expr <- function(lc) {
+	# form symbolic sum and diff form a list of nds
+	# separate in positive and negative
+	smin <- sapply(lc, "[[", "sminus")
+	epos <- lapply(lc[which(!smin)], nd2expr)
+	eneg <- lapply(lc[which(smin)], nd2expr, sminus=FALSE)
+	if (length(epos) == 0)
+		return(if (length(eneg) == 0) 0 else substitute(-li2sum(eneg)))
+	else
+		return(if (length(eneg) == 0) li2sum(epos) else call("-", li2sum(epos), li2sum(eneg)))
+}
+li2sum <- function(li) {
+	# form a long sum of expressions from the list li
+	if (length(li) == 0)
+		0
+	else if (length(li) == 1)
+		li[[1]]
+	else if (length(li) == 2)
+		call("+", li[[1]], li[[2]])
+	else
+		call("+", li[[1]], li2sum(li[-1]))
 }
 
 simplifications <- new.env()
