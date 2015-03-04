@@ -126,7 +126,7 @@
 #' 
 #' # Compound function example (here smoothed abs(x))
 #' fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
-#' Deriv("fc(x)", "x")
+#' Deriv("fc(x)", "x", cache=FALSE)
 #' "if (abs(x) < h) x/h else sign(x)"
 #' 
 #' # Example of first argument which cannot be evaluated (hereafter, xx and yy are supposed to not be defined)
