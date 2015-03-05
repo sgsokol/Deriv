@@ -31,7 +31,7 @@ test_that("log simplifications", {
    expect_equal_lang(log(a), log(a)) # no change must occur
    expect_equal_lang(log(a*b), log(a)+log(b))
    expect_equal_lang(log(exp(a)), a)
-   expect_equal_lang(log(a^n), log(a)*n)
+   expect_equal_lang(log(a^n), n*log(a))
    expect_equal_lang(log(sqrt(a)), 0.5*log(a))
 })
 test_that("sqrt simplifications", {
@@ -45,4 +45,10 @@ test_that("sqrt simplifications", {
 test_that("abs simplifications", {
    expect_equal_lang(abs(a), abs(a)) # no change must occur
    expect_equal_lang(abs(a*a), a^2)
+})
+test_that("factorizations", {
+   expect_equal_lang(a+b, a+b) # no change must occur
+   expect_equal_lang(a*a+b*a, a*(a+b))
+   expect_equal_lang(a^2+b*a^3, a^2*(1+a*b))
+   expect_equal_lang(a^2/c**5+b*a^3/d/c**3, a^2*(1/c^2+a*b/d)/c^3)
 })
