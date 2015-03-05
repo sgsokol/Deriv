@@ -108,8 +108,8 @@ Simplify_ <- function(expr)
 		return(if (add) b else call("-", b))
 	} else if (b == 0) {
 		return(a)
-	} else if (format1(a) == format1(b) && !add) {
-		return(0)
+	} else if (format1(a) == format1(b)) {
+		return(if (add) call("*", 2, a) else 0)
 	} else if (!is.call(a) && !is.call(b)) {
 		return(expr) # nothing to simplify
 	}
@@ -123,47 +123,78 @@ Simplify_ <- function(expr)
 		blc <- lapply(blc, function(it) {it$sminus <- !it$sminus; it})
 		lc <- c(alc, blc)
 	}
-	# character bases in numerators
-	bnch <- unlist(lapply(lc, function(it) {lapply(it$num$b, format1)}))
-	# index of the lc term for each bnch
-	ilc <- unlist(lapply(seq_along(lc), function(i) {rep(i, length(lc[[i]]$num$b))}))
-	# index of the base in a given term (nd) for each bnch
-	ind <- unlist(lapply(seq_along(lc), function(i) {seq_along(lc[[i]]$num$b)}))
-	ta <- table(bnch)
-	ta <- ta[ta > 1] # keep only repeated bases
-	if (length(ta) == 0)
-		return(expr) # nothing to factorize
-	tsim <- outer(bnch, names(ta), `==`)
-	i_fa <- which.max(ta) # factor candidate
-	i_lc <- ilc[tsim[,i_fa]] # indexes of lc where the factor is present
-	i_nd <- ind[tsim[,i_fa]] # indexes of the factor in nds
-	# see if there are other factor candidates in the same lc terms
-	for (i in seq_along(ta)[-i_fa]) {
-		if (unique(ilc[tsim[,i]]) == i_lc) {
-			i_fa <- c(i_fa, i)
-			i_nd <- cbind(i_nd, ind[tsim[,i]])
+	bch <- ta <- tsim <- po <- ilc <- ind <- list()
+	for (cnd in c("num", "den")) {
+		# character bases in num/den
+		bch[[cnd]] <- unlist(lapply(lc, function(it) {lapply(it[[cnd]]$b, format1)}))
+		# powers
+		po[[cnd]] <- do.call(c, lapply(lc, function(it) it[[cnd]]$p), quote=TRUE)
+		# index of the lc term for each bnch
+		ta[[cnd]] <- table(bch[[cnd]])
+		ta[[cnd]] <- ta[[cnd]][ta[[cnd]] > 1] # keep only repeated bases
+		tsim[[cnd]] <- outer(bch[[cnd]], names(ta[[cnd]]), `==`)
+		ilc[[cnd]] <- unlist(lapply(seq_along(lc), function(i) {rep(i, length(lc[[i]][[cnd]]$b))}))
+		# index of the base in a given term (nd) for each bnch
+		ind[[cnd]] <- unlist(lapply(seq_along(lc), function(i) {seq_along(lc[[i]][[cnd]]$b)}))
+	}
+	# fnd will be the name "num" or "den" where the first factor
+	# will be taken. ond is the "other" name (if fnd=="num", then ond == "den")
+	# we select the cadidate which is most repeated provided that it
+	# has at least one numeric power occurance.
+	taa <- unlist(ta)
+	ota <- order(taa, decreasing=TRUE)
+	ntan <- length(ta$num)
+	fnd <- NA
+	for (i in ota) {
+		cnd <- if (i > ntan) "den" else "num"
+		ita <- i - if (i > ntan) ntan else 0
+		ib <- bch[[cnd]] == names(ta[[cnd]])[ita]
+		if (any(sapply(po[[cnd]], is.numeric))) {
+			fnd <- cnd
+			iit <- which(ib) # the bases equal to factor
+			p_fa <- min(sapply(po[[cnd]][ib], function(p) if (is.numeric(p)) p else NA), na.rm=TRUE)
+			i_lc <- ilc[[cnd]][iit]
+			i_nd <- ind[[cnd]][iit]
+			break
 		}
 	}
-	dim(i_nd) <- c(sum(tsim[,i_fa[1]]), length(i_fa))
-	oi_fa <- order(i_fa)
-	i_fa <- i_fa[oi_fa]
-	i_nd <- i_nd[,oi_fa, drop=FALSE]
-	# we have bases, now get powers of factors to chose the lowest among numeric
-	p_fa <- lapply(i_fa, function(ii_fa) min(sapply(i_lc, function(ii_lc) {p <- lc[[ii_lc]]$num$p[i_nd[i_lc==ii_lc,ii_fa]]; if (is.numeric(p)) p else NA}), na.rm=TRUE))
-	inu <- sapply(p_fa, is.numeric)
-	p_fa <- p_fa[inu]
-	i_fa <- i_fa[inu]
-	# put factors in a dedicated nd: fa_nd
-	# and remove them from original nds
+#browser()
+	if (is.na(fnd))
+		return(expr) # nothing to factorize
+	ond <- if (fnd == "num") "den" else "num"
+	# create nd with the first factor
 	fa_nd <- list(num=list(b=list(), p=list()),
+		den=list(b=list(), p=list()),
 		sminus=FALSE, fa=list(num=1, den=1))
-	for (i in i_fa) {
-		nd <- lc[[i_lc[1]]]$num
-		fa_nd$num$b <- append(fa_nd$num$b, nd$b[[i_nd[1,i]]])
-		fa_nd$num$p <- append(fa_nd$num$p, p_fa[[i]])
-		for (ii_lc in i_lc) {
-			ii_nd <- i_nd[i_lc==ii_lc,i_fa]
-			lc[[ii_lc]]$num$p[ii_nd] <- lapply(lc[[ii_lc]]$num$p[ii_nd], function(it) Simplify_(call("-", it, p_fa[[i]])))
+	fa_nd[[fnd]]$b <- lc[[i_lc[1]]][[fnd]]$b[i_nd[1]]
+	fa_nd[[fnd]]$p <- p_fa
+	# decrease p in the lc terms
+	for (i in seq_along(i_lc)) {
+		lc[[i_lc[i]]][[fnd]]$p[i_nd[i]] <- Simplify_(call("-", lc[[i_lc[i]]][[fnd]]$p[i_nd[i]], p_fa))
+	}
+	
+	for (cnd in c(fnd, ond)) {
+		# see if other side can provide factors
+		for (i in seq_along(ta[[cnd]])) {
+			if ((cnd == fnd && i == ita) || ta[[fnd]][ita] != ta[[cnd]][i] || any(ilc[[cnd]][tsim[[cnd]][,i]] != i_lc)) {
+				next # no common layout with factor
+			}
+			ib <- bch[[cnd]] == names(ta[[cnd]])[i]
+			# see if it has numeric power
+			if (!any(sapply(po[[cnd]], is.numeric))) {
+				next
+			}
+			iit <- which(ib) # the bases equal to factor
+			p_fa <- min(sapply(po[[cnd]][ib], function(p) if (is.numeric(p)) p else NA), na.rm=TRUE)
+			i_lc <- ilc[[cnd]][iit]
+			i_nd <- ind[[cnd]][iit]
+			fa_nd[[cnd]]$b <- append(fa_nd[[cnd]]$b, lc[[i_lc[1]]][[cnd]]$b[i_nd[1]])
+			fa_nd[[cnd]]$p <- append(fa_nd[[cnd]]$p,
+p_fa)
+			# decrease p in the lc terms
+			for (i in seq_along(i_lc)) {
+				lc[[i_lc[i]]][[cnd]]$p[i_nd[i]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[i_nd[i]], p_fa))
+			}
 		}
 	}
 #browser()
@@ -182,9 +213,6 @@ Simplify_ <- function(expr)
 
 `Simplify.*` <- function(expr, div=FALSE)
 {
-	if (!is.null(attr(expr, "Simplified"))) {
-		return(expr)
-	}
 #print(expr)
 #browser()
 	a <- expr[[2]]
@@ -318,7 +346,6 @@ Simplify_ <- function(expr)
 		nd[["fa"]] <- fa
 		nd[["sminus"]] <- sminus
 		expr <- nd2expr(nd)
-		attr(expr, "Simplified") <- TRUE
 		expr
 	}
 }
@@ -465,9 +492,7 @@ Numden <- function(expr) {
 	# "sminus" is logical for applying or not "-" to the whole expression
 	# Each sublist regroups the language expressions which are not products neither
 	# divisions. The terms are decomposed in b^p sublists
-	if (!is.null(attr(expr, "nd"))) {
-		attr(expr, "nd")
-	} else if (is.uminus(expr)) {
+	if (is.uminus(expr)) {
 		a=Numden(expr[[2]])
 		a$sminus <- !a$sminus
 		a
@@ -535,7 +560,7 @@ is.unumeric <- function(e) {
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
 	# the sign of each term is determined by the nd$sminus logical item.
-	if (is.call(expr)) {
+	if (is.call(expr) && length(expr) == 3) {
 		if (expr[[1]] == as.symbol("+")) {
 			# recursive call
 			c(Lincomb(expr[[2]]), Lincomb(expr[[3]]))
@@ -567,7 +592,7 @@ Leaves <- function(st, ind="1", res=new.env()) {
 }
 
 # replace repeated subexpressions by cached values
-Cache <- function(st, env=Leaves(st)) {
+Cache <- function(st, env=Leaves(st), prefix="") {
 	ve <- unlist(as.list(env))
 	ta <- table(ve)
 	ta <- ta[ta > 1]
@@ -587,7 +612,7 @@ Cache <- function(st, env=Leaves(st)) {
 					break # was already cached
 				# add subexpression to the final code
 				ie=length(e)
-				estr <- sprintf(".e%d", ie)
+				estr <- sprintf("%s.e%d", prefix, ie)
 				esub <- as.symbol(estr)
 				e[[ie+1]] <- call("<-", esub, esubst)
 				alva[[estr]] <- all.vars(esubst)
@@ -601,14 +626,14 @@ Cache <- function(st, env=Leaves(st)) {
 	alva[["end"]] <- all.vars(st)
 	# where .eX are used? If only once, develop, replace and remove it
 	wh <- lapply(seq_along(as.list(e)[-1]), function(i) {
-		it=sprintf(".e%d", i)
+		it=sprintf("%s.e%d", prefix, i)
 		which(sapply(alva, function(v) any(it == v)))
 	})
 	dere <- sapply(wh, function(it) if (length(it) == 1 && names(it) != "end") it[[1]] else 0)
 	for (i in which(dere != 0)) {
 		idest <- dere[i]+1
 		li <- list()
-		li[[sprintf(".e%d", i)]] <- e[[i+1]][[3]]
+		li[[sprintf("%s.e%d", prefix, i)]] <- e[[i+1]][[3]]
 		e[[idest]][[3]] <- do.call("substitute", c(e[[idest]][[3]], list(li)))
 	}
 	e <- e[c(1,which(!dere)+1)]
