@@ -111,27 +111,30 @@ NB2. In Bessel functions, derivatives are calculated only by the first argument,
 # [1,] 0.6471023 0.1068000
 
 \dontrun{Deriv(~ f(x, y^2), "y")}
-# -(2 * (sin(x) * y * sin(y^2)))
+# -(2 * (y * sin(x) * sin(y^2)))
 
 \dontrun{Deriv(quote(f(x, y^2)), c("x", "y"))}
-# c(x = cos(x) * cos(y^2), y = -(2 * (sin(x) * y * sin(y^2))))
+# c(x = cos(x) * cos(y^2), y = -(2 * (y * sin(x) * sin(y^2))))
 
 \dontrun{Deriv(expression(sin(x^2) * y), "x")}
-# expression(cos(x^2) * (2 * x) * y)
+# expression(2*(x*y*cos(x^2)))
 
 Deriv("sin(x^2) * y", "x") # differentiate only by x
-"2 * (x * cos(x^2) * y)"
+"2 * (x * y * cos(x^2))"
 
-Deriv("sin(x^2) * y") # differentiate by all variables (here by x and y)
-"c(x = 2 * (x * cos(x^2) * y), y = sin(x^2))"
+Deriv("sin(x^2) * y", cache.exp=FALSE) # differentiate by all variables (here by x and y)
+"c(x = 2 * (x * y * cos(x^2)), y = sin(x^2))"
 
-# Compound function example (here smoothed abs(x))
+# Compound function example (here abs(x) smoothed near 0)
 fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
-Deriv("fc(x)", "x")
+Deriv("fc(x)", "x", cache.exp=FALSE)
 "if (abs(x) < h) x/h else sign(x)"
 
-# Example of first argument which cannot be evaluated (hereafter, xx and yy are supposed to not be defined)
-\dontrun{Deriv(xx**2+yy^2)}
+# Example of a first argument that cannot be evaluated in the current environment:
+\dontrun{
+  suppressWarnings(rm("xx", "yy"))
+  Deriv(xx**2+yy^2)
+}
 # c(xx = 2 * xx, yy = 2 * yy)
 }
 \concept{
