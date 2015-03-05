@@ -108,6 +108,10 @@ Simplify_ <- function(expr)
 		return(if (add) b else call("-", b))
 	} else if (b == 0) {
 		return(a)
+	} else if (add && is.uminus(a) && !is.uminus(b)) {
+		a <- b
+		b <- expr[[2]][[2]]
+		expr <- call("-", a, b)
 	} else if (format1(a) == format1(b)) {
 		return(if (add) call("*", 2, a) else 0)
 	} else if (!is.call(a) && !is.call(b)) {
