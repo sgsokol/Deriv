@@ -142,6 +142,8 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	if (inherits(tf, "try-error")) {
 		f <- substitute(f)
 	}
+	# clean dsym env
+	rm(list=ls(dsym), envir=dsym)
 	if (is.null(x)) {
 		# primitive function
 		fch <- deparse(substitute(f))
@@ -233,10 +235,13 @@ Deriv_ <- function(st, x, env, use.D) {
 	if (is.unumeric(st)) {
 		return(0)
 	} else if (is.symbol(st)) {
-		if (as.character(st) == x) {
+		stch <- as.character(st)
+		if (stch == x) {
 			return(1)
-		} else {
+		} else if (is.null(dsym[[stch]])) {
 			return(0)
+		} else {
+			return(dsym[[stch]])
 		}
 	} else if ((is.uminus(st) || is.uplus(st)) && is.symbol(st[[2]])) {
 		if (as.character(st[[2]]) == x) {
@@ -247,6 +252,7 @@ Deriv_ <- function(st, x, env, use.D) {
 	} else if (is.call(st)) {
 #browser()
 		stch <- as.character(st[[1]])
+		args <- as.list(st)[-1]
 		if (stch %in% dlin) {
 			# linear case
 			# differentiate all arguments then pass them to the function
@@ -254,6 +260,32 @@ Deriv_ <- function(st, x, env, use.D) {
 			return(Simplify_(as.call(c(st[[1]], dargs))))
 		}
 		nb_args=length(st)-1
+		if (stch == "{") {
+#browser()
+			# AD differentiation
+			res=list(st[[1]])
+			for (a in args) {
+				if (is.call(a) && (a[[1]] == as.symbol("<-") || a[[1]] == as.symbol("="))) {
+					if (!is.symbol(a[[2]]))
+						stop(sprintf("In AD mode, don't know to deal with a non symbol '%s' at lhs", format1(a[[2]])))
+					res <- append(res, a)
+					de_a <- Deriv_(a[[3]], x, env, use.D)
+					ach <- as.character(a[[2]])
+					if (de_a == 0) {
+						next
+					} else if (is.numeric(de_a)) {
+						dsym[[ach]] <- de_a
+						next
+					}
+					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))
+					dsym[[ach]] <- d_a
+					res <- append(res, call("<-", d_a, de_a))
+				} else {
+					res <- append(res, Deriv_(a, x, env, use.D))
+				}
+			}
+			return(as.call(res))
+		}
 		if (is.null(drule[[stch]])) {
 			# no derivative rule for this function
 			# try to get the body and differentiate it
@@ -262,7 +294,6 @@ Deriv_ <- function(st, x, env, use.D) {
 			if (is.null(bf)) {
 				stop(sprintf("Could not retrieve body of '%s()'", stch))
 			}
-			args <- as.list(st[-1])
 			mc <- match.call(ff, st)
 			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])))
 			return(Deriv_(st, x, env, use.D))
@@ -308,6 +339,7 @@ Deriv_ <- function(st, x, env, use.D) {
 }
 
 drule <- new.env()
+dsym <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")

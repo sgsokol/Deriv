@@ -597,6 +597,17 @@ Leaves <- function(st, ind="1", res=new.env()) {
 
 # replace repeated subexpressions by cached values
 Cache <- function(st, env=Leaves(st), prefix="") {
+	stch <- if (is.call(st)) as.character(st[[1]]) else ""
+	if (stch == "<-" || stch == "=") {
+		return(call("<-", st[[2]], Cache(st[[3]], prefix=paste(".", st[[1]], sep=""))))
+	} else if (stch == "{") {
+		return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache))))
+	}
+	alva <- all.vars(st)
+	p <- grep(sprintf("^%s.e[0-9]+", prefix), alva, value=T)
+	if (length(p) > 0) {
+		prefix <- max(p)
+	}
 	ve <- unlist(as.list(env))
 	ta <- table(ve)
 	ta <- ta[ta > 1]
