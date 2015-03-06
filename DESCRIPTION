@@ -6,7 +6,7 @@ Date: 2015-03-06
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
     email="sokol@insa-toulouse.fr"))
-Description: R based solution for symbolic differentiation. This package admits
+Description: R-based solution for symbolic differentiation. It admits
     user-defined function as well as function substitution
     in arguments of functions to be differentiated. Some symbolic
     simplification is part of the work.
