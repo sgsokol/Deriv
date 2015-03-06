@@ -71,7 +71,19 @@ So, here are the advantages of this implementation:
  \item It is entirely written in R, so would be easier to maintain.
  \item Can do multi-variate differentiation.
  \item Can differentiate function calls:
+ \itemize{
+	   \item if the function is in the derivative table, then the chain rule
+	is applied.  For example, if you declared that the derivative of
+	sin is cos, then it would figure out how to call cos correctly.
+	   \item if the function is not in the derivative table (or it is anonymous),
+	then the function body is substituted in.
+	   \item these two methods can be mixed.  An entry in the derivative table
+	need not be self-contained -- you don't need to provide an infinite
+	chain of derivatives.
+ }
  \item It's easy to add custom entries to the derivatives table, e.g.
+
+  \code{drule[["cos"]] <- list(-._d1*sin(._1))}
  \item The output is an executable function, which makes it suitable
      for use in optimization problems.
  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
@@ -85,14 +97,14 @@ simplification rules.
 To see the list of defined rules do \code{ls(drule)}.
 To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))}.
 Here, "._1" stands for the "first arguments", "._d1" for the first derivative of the first arguments. For a function that might have more than one argument,
-e.g. log(x, base=exp(1)), the drule entry must be a list with one rule
+e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with one rule
 per number of possible arguments. See \code{drule$log} for an example to follow.
 After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
 
-NB. In abs() and sign() function, singularity treatment at point 0 is left to user's care.
+NB. In \code{abs()} and \code{sign()} function, singularity treatment at point 0 is left to user's care.
 
 NB2. In Bessel functions, derivatives are calculated only by the first argument,
-     not by the "nu" argument which is supposed to be constant.
+     not by the \code{nu} argument which is supposed to be constant.
 }
 \examples{
 \dontrun{f <- function(x) x^2}
@@ -133,9 +145,17 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 # Example of a first argument that cannot be evaluated in the current environment:
 \dontrun{
   suppressWarnings(rm("xx", "yy"))
-  Deriv(xx**2+yy^2)
+  Deriv(xx^2+yy^2)
 }
 # c(xx = 2 * xx, yy = 2 * yy)
+
+# Automatic differentiation (AD), note itermediate variable \\code{d} assignment
+\dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x")}
+#{
+#   d <- ((x - m)/s)^2
+#   .d_x <- 2 * ((x - m)/s^2)
+#   -(0.5 * (.d_x * exp(-(0.5 * d))))
+#}
 }
 \concept{
 symbollic differentiation

@@ -9,14 +9,14 @@
 #' 
 #' @param expr An expression to be simplified, expr can be
 #' \itemize{
-#'    \item an expression: \code{as.expression(x+x)}
-#'    \item an string: \code{"x+x"}
+#'    \item an expression: \code{expression(x+x)}
+#'    \item a string: \code{"x+x"}
 #'    \item a function: \code{function(x) x+x}
 #'    \item a right hand side of a formula: \code{~x+x}
 #'    \item a language: \code{quote(x+x)}
 #' }
 #' @param env An environment in wich a simplified function is created
-#'  if \code{expr} is a function. This argument is ignored is all other cases.
+#'  if \code{expr} is a function. This argument is ignored in all other cases.
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
@@ -613,8 +613,8 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	ta <- ta[ta > 1]
 	if (length(ta) == 0)
 		return(st)
-	e=call("{") # will store the result code
-	alva=list()
+	e <- list() # will store the result code
+	alva <- list()
 	for (sub in names(sort(ta, decreasing=TRUE))) {
 		# get indexes for this subexpression
 		isubs <- names(which(ve == sub))
@@ -626,33 +626,34 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 				if (inherits(esubst, "try-error"))
 					break # was already cached
 				# add subexpression to the final code
-				ie=length(e)
+				ie=length(e)+1
 				estr <- sprintf("%s.e%d", prefix, ie)
 				esub <- as.symbol(estr)
-				e[[ie+1]] <- call("<-", esub, esubst)
+				e[[ie]] <- call("<-", esub, esubst)
 				alva[[estr]] <- all.vars(esubst)
 			}
 			# replace subexpression in st by .eX
 			do.call(`<-`, list(subst, as.symbol("esub")))
 		}
 	}
-	# the final touch
-	e[[ie+2]] <- st
+#browser()
 	alva[["end"]] <- all.vars(st)
 	# where .eX are used? If only once, develop, replace and remove it
-	wh <- lapply(seq_along(as.list(e)[-1]), function(i) {
+	wh <- lapply(seq_along(e), function(i) {
 		it=sprintf("%s.e%d", prefix, i)
 		which(sapply(alva, function(v) any(it == v)))
 	})
+	# the final touch
+	e[[ie+1]] <- st
 	dere <- sapply(wh, function(it) if (length(it) == 1 && names(it) != "end") it[[1]] else 0)
 	for (i in which(dere != 0)) {
-		idest <- dere[i]+1
+		idest <- dere[i]
 		li <- list()
-		li[[sprintf("%s.e%d", prefix, i)]] <- e[[i+1]][[3]]
+		li[[sprintf("%s.e%d", prefix, i)]] <- e[[i]][[3]]
 		e[[idest]][[3]] <- do.call("substitute", c(e[[idest]][[3]], list(li)))
 	}
-	e <- e[c(1,which(!dere)+1)]
-	return(e)
+	e <- c(list(as.symbol("{")), e[which(!dere)], e[length(e)])
+	return(as.call(e))
 }
 nd2expr <- function(nd, sminus=NULL) {
 	# form symbolic products

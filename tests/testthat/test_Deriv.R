@@ -36,7 +36,7 @@ expect_equal_deriv <- function(t, r, nmvar="x") {
       refder=sapply(x, function(val) eval(ref, list(x=val)))
       i=is.finite(refder) & is.finite(numder)
       expect_more_than(sum(i), 0, label=sprintf("length of central diff for %s", format1(test)))
-      expect_equal(numder[i], refder[i], tolerance=5.e-9, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
+      expect_equal(numder[i], refder[i], tolerance=5.e-8, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
    }
 }
 expect_equal_format1 <- function(t, r) {
@@ -118,6 +118,22 @@ test_that("chain rule: multiply by a const", {
 test_that("special cases", {
    expect_equal_deriv(log(x, x), 0)
 })
+
+# test AD and caching
+# gaussian function
+g <- function(x, m=0, s=1) exp(-0.5*(x-m)^2/s^2)/s/sqrt(2*pi)
+g1c <- Deriv(g, "x") # cache enabled by default
+g1n <- Deriv(g, "x", cache.exp=FALSE) # cache disabled
+g2c <- Deriv(g1c, "x") # cache enabled by default
+g2n <- Deriv(g1n, "x", cache.exp=FALSE) # cache disabled
+m <- 0.5
+s <- 3.
+x=seq(-2, 2, len=11)
+test_that("expression cache test", {
+   expect_equal_deriv(exp(-0.5*(x-m)^2/s^2)/s/sqrt(2*pi), -(exp(-(0.5 * ((x - m)^2/s^2))) * (x - m)/(s^3 * sqrt(2 * pi))))
+   expect_equal(g2n(x, m, s), g2c(x, m, s))
+})
+
 
 # doc examples
 fsq <- function(x) x^2

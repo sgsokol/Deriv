@@ -9,15 +9,15 @@ Simplify(expr, env = parent.frame())
 \arguments{
 \item{expr}{An expression to be simplified, expr can be
 \itemize{
-   \item an expression: \code{as.expression(x+x)}
-   \item an string: \code{"x+x"}
+   \item an expression: \code{expression(x+x)}
+   \item a string: \code{"x+x"}
    \item a function: \code{function(x) x+x}
    \item a right hand side of a formula: \code{~x+x}
    \item a language: \code{quote(x+x)}
 }}
 
 \item{env}{An environment in wich a simplified function is created
-if \code{expr} is a function. This argument is ignored is all other cases.}
+if \code{expr} is a function. This argument is ignored in all other cases.}
 }
 \value{
 A simplified expression. The result is of the same type as
