@@ -115,8 +115,9 @@ test_that("chain rule: multiply by a const", {
    expect_equal_deriv(exp(a*x), a*exp(a*x))
    expect_equal_deriv(log(a*x), 1/x)
 })
-test_that("special cases", {
+test_that("particular cases", {
    expect_equal_deriv(log(x, x), 0)
+   expect_equal_deriv(x^n+sin(n*x), n * (x^(n - 1) + cos(n * x)))
 })
 
 # test AD and caching
