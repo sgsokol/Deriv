@@ -171,10 +171,10 @@ Simplify_ <- function(expr)
 		den=list(b=list(), p=list()),
 		sminus=FALSE, fa=list(num=1, den=1))
 	fa_nd[[fnd]]$b <- lc[[i_lc[1]]][[fnd]]$b[i_nd[1]]
-	fa_nd[[fnd]]$p <- p_fa
+	fa_nd[[fnd]]$p <- list(p_fa)
 	# decrease p in the lc terms
 	for (i in seq_along(i_lc)) {
-		lc[[i_lc[i]]][[fnd]]$p[i_nd[i]] <- Simplify_(call("-", lc[[i_lc[i]]][[fnd]]$p[i_nd[i]], p_fa))
+		lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]], p_fa))
 	}
 	
 	for (cnd in c(fnd, ond)) {
@@ -197,7 +197,7 @@ Simplify_ <- function(expr)
 p_fa)
 			# decrease p in the lc terms
 			for (i in seq_along(i_lc)) {
-				lc[[i_lc[i]]][[cnd]]$p[i_nd[i]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[i_nd[i]], p_fa))
+				lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]], p_fa))
 			}
 		}
 	}
