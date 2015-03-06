@@ -44,8 +44,8 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 2.0\cr
-Date: \tab 2015-02-05\cr
+Version: \tab 3.0\cr
+Date: \tab 2015-03-06\cr
 License: \tab GPL (>= 3)\cr
 }
 The package contains two useful functions: Deriv() for differentiating
