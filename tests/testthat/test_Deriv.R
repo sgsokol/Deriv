@@ -105,6 +105,9 @@ test_that("special functions", {
    expect_equal_deriv(lbeta(x, y), digamma(x) - digamma(x + y))
    expect_equal_deriv(lbeta(x, y), digamma(y) - digamma(x + y), "y")
 })
+test_that("probability densities", {
+   expect_equal_deriv(dbinom(5,3,x), 3 * ((3 - 5 * x) * dbinom(5, 2, x)/(1 - x)^2))
+}
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
    expect_equal_deriv((a*x)**2, 2*(a^2*x))
@@ -118,6 +121,7 @@ test_that("chain rule: multiply by a const", {
 test_that("particular cases", {
    expect_equal_deriv(log(x, x), 0)
    expect_equal_deriv(x^n+sin(n*x), n * (x^(n - 1) + cos(n * x)))
+   expect_equal_deriv(x*(1-x), 1-2*x))
 })
 
 # test AD and caching

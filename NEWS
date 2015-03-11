@@ -1,3 +1,12 @@
+Version 3.1
+===========
+
+* 2015-03-??
+ - added dbinom() and dnorm() to derivate table
+ - fixed simplification of k-1-k to 0-1
+ - fixed Deriv(p*(1-p))
+ - fixed simplification of 3-5*x to 3*1-5*x
+
 Version 3.0
 ===========
 

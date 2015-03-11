@@ -425,3 +425,8 @@ drule[["trigamma"]] <- list(quote(._d1*psigamma(._1, 2L)))
 drule[["psigamma"]] <- list(quote(._d1*psigamma(._1, 1L)), quote(._d1*psigamma(._1, ._2+1L)))
 drule[["beta"]] <- list(NULL, quote(beta(._1, ._2)*(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2))))
 drule[["lbeta"]] <- list(NULL, quote(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2)))
+
+# probability densities
+drule[["dbinom"]] <- list(NULL, NULL, quote(if (._2 == 0) -._1*._d3*(1-._3)^(._1-1) else if (._1 == ._2) ._2*._d3*._3^(._2-1) else ._d3*(._2-._1*._3)*(._1-._2+1)*dbinom(._1, ._2-1, ._3)/(1-._3)^2))
+drule[["dbinom"]][[4]] <- call("if", as.symbol("._4"), call("/", drule[["dbinom"]][[3]], quote(dbinom(._1, ._2, ._3))), drule[["dbinom"]][[3]])
+drule[["dnorm"]] <- list(-._d1*._1*exp(-0.5*._1^2)/sqrt(2*pi), ._d2*(._1-._2)*exp(-0.5*(._1-._2)^2)/sqrt(2*pi)-._d1*(._1-.2)*exp(-0.5*(._1-.2)^2)/sqrt(2*pi), ._d2*(._1-._2)*exp(-0.5*((._1-._2)/._3)^2)/sqrt(2*pi)/s^3-._d1*(._1-.2)*exp(-0.5*((._1-.2)/._3)^2)/sqrt(2*pi)/._3^3+._d3*(((._1 - ._2)^2/._3^2 - 1) * exp(-(0.5 * ((._1 - ._2)/._3)^2))/(._3^2 * sqrt(2 * pi))))
