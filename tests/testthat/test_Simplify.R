@@ -53,4 +53,5 @@ test_that("factorizations", {
    expect_equal_lang(a^2+b*a^3, a^2*(1+a*b))
    expect_equal_lang(a^2/c**5+b*a^3/d/c**3, a^2*(1/c^2+a*b/d)/c^3)
    expect_equal_lang(a+1-a, 1)
+   expect_equal_lang(1+x-1, x)
 })
