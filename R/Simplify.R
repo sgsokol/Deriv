@@ -58,8 +58,7 @@ format1 <- function(expr) {
 	return(res)
 }
 
-Simplify_ <- function(expr)
-{
+Simplify_ <- function(expr) {
 	if (is.call(expr)) {
 		che <- format1(expr)
 		res <- scache[[che]]
@@ -76,24 +75,18 @@ Simplify_ <- function(expr)
 #cat("simp expr=", format1(expr), "\n", sep="")
 		args <- lapply(as.list(expr)[-1], Simplify_)
 		expr[-1]=args
-		if (all(sapply(args, is.numeric))) {
-			# if all arguments are numeric, evaluate them
+		if (all(sapply(args, is.conuloch))) {
+			# if all arguments are like numeric, evaluate them
 			res <- eval(expr)
 			scache[[che]] <- res
 			return(res)
 		} else {
-			# is the call a nested one?
-			if (all(sapply(args, is.symbol))) {
-				scache[[che]] <- expr
-				return(expr)
-			} else {
-				# is there a rule in the table?
-				sym.name <- as.character(expr[[1]])
-				Simplify.rule <- simplifications[[sym.name]]
-				res <- if (!is.null(Simplify.rule)) Simplify.rule(expr) else expr
-				scache[[che]] <- res
-				return(res)
-			}
+			# is there a rule in the table?
+			sym.name <- as.character(expr[[1]])
+			Simplify.rule <- simplifications[[sym.name]]
+			res <- if (!is.null(Simplify.rule)) Simplify.rule(expr) else expr
+			scache[[che]] <- res
+			return(res)
 		}
 	} else {
 		expr
@@ -103,12 +96,10 @@ Simplify_ <- function(expr)
 
 # in what follows no need to Simplify_ args neither to check if
 # all arguments are unumeric. It is done in upper Simplify_()
-`Simplify.(` <- function(expr)
-{
+`Simplify.(` <- function(expr) {
 	expr[[2]]
 }
-`Simplify.+` <- function(expr, add=TRUE)
-{
+`Simplify.+` <- function(expr, add=TRUE) {
 	if (length(expr) == 2) {
 		if (add)
 			return(expr[[2]])
@@ -144,6 +135,14 @@ Simplify_ <- function(expr)
 		# inverse sminus in b
 		blc <- lapply(blc, function(it) {it$sminus <- !it$sminus; it})
 		lc <- c(alc, blc)
+	}
+#browser()
+	# sum purely numeric terms
+	inum <- which(sapply(lc, function(it) length(it$num)==0 && length(it$den)==0))
+	if (length(inum) > 1) {
+		term <- sum(sapply(lc[inum], function(it) (if (it$sminus) -1 else 1)*it$fa$num/it$fa$den))
+		lc[[inum[1]]] <- list(fa=list(num=abs(term), den=1), sminus=term<0)
+		lc <- lc[-inum[-1]]
 	}
 	bch <- ta <- tsim <- po <- ilc <- ind <- list()
 	for (cnd in c("num", "den")) {
@@ -578,6 +577,10 @@ is.uplus <- function(e) {
 is.unumeric <- function(e) {
 	# detect if numeric with optional unitary sign(s)
 	return(is.numeric(e) || ((is.uminus(e) || is.uplus(e)) && is.unumeric(e[[2]])))
+}
+is.conuloch <- function(e) {
+	# detect if e is complex, numeric, logical or character
+	return(is.numeric(e) || is.logical(e) || is.complex(e) || is.character(e))
 }
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
