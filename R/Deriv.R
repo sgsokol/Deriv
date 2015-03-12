@@ -187,15 +187,17 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		format1(res)
 	} else if (is.function(f)) {
 		b <- body(f)
-		if (is.call(b) && b[[1]] == as.symbol(".Internal")) {
+		if (is.call(b) && b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External")) {
 			fch <- deparse(substitute(f))
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
-				res <- Deriv_(as.call(c(substitute(f), lapply(x, as.symbol))), x, env, use.D)
+				arg <- lapply(names(formals(args(f))), as.symbol)
+				acall <- as.call(c(as.symbol(fch), arg))
+				res <- Deriv_(acall, x, env, use.D)
 				if (cache.exp)
 					res <- Cache(res)
 				as.function(c(formals(f), res), envir=env)
 			} else {
-				stop(sprintf("Internal function '%s()' is not in derivative table.", fch))
+				stop(sprintf("Internal or external function '%s()' is not in derivative table.", fch))
 			}
 		} else {
 			res <- Deriv_(b, x, env, use.D)
@@ -268,10 +270,11 @@ Deriv_ <- function(st, x, env, use.D) {
 		if (stch %in% dlin) {
 			# linear case
 			# differentiate all arguments then pass them to the function
-			dargs <- lapply(as.list(st)[-1], function(a) Deriv_(a, x, env, use.D))
+			dargs <- lapply(args, Deriv_, x, env, use.D)
 			return(Simplify_(as.call(c(st[[1]], dargs))))
 		}
 		nb_args=length(st)-1
+		# special cases: out of rule table or args(stch) -> NULL
 		if (stch == "{") {
 #browser()
 			# AD differentiation
@@ -297,8 +300,18 @@ Deriv_ <- function(st, x, env, use.D) {
 				}
 			}
 			return(as.call(res))
+		} else if (is.uminus(st)) {
+			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D))))
+		} else if (stch == "(") {
+			return(Simplify(Deriv_(st[[2]], x, env, use.D)))
+		} else if (stch == "if") {
+			return(if (nb_args == 2)
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D))) else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D),
+					Deriv_(st[[4]], x, env, use.D))))
 		}
-		if (is.null(drule[[stch]])) {
+		rule <- drule[[stch]]
+		if (is.null(rule)) {
 			# no derivative rule for this function
 			# try to get the body and differentiate it
 			ff <- get(stch, mode="function", envir=env)
@@ -309,33 +322,46 @@ Deriv_ <- function(st, x, env, use.D) {
 			mc <- match.call(ff, st)
 			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])))
 			return(Deriv_(st, x, env, use.D))
-		} else if (is.null(drule[[stch]][[nb_args]]) && !use.D) {
-			stop(sprintf("Don't know how to differentiate function or operator '%s' when it is called with %s arguments", stch, nb_args))
 		}
 		# there is a rule!
 		if (use.D) {
 			return(Simplify(D(st, x)))
 		}
-		# prepare replacement list ._1 -> first argument, ._d1 -> derivative of the first argument and so on
-		args <- as.list(st)[-1]
-		names(args) <- paste("._", seq_len(nb_args), sep="")
+		# prepare replacement list
+		da <- args(stch)
+		mc <- as.list(match.call(def=da, call=st))[-1]
+		da <- as.list(da)
+		da <- da[-length(da)] # all declared arguments with default values
+		aa <- modifyList(da, mc) # all arguments with actual values
+		# actualize the rule with actual arguments
+		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
+#browser()		
 		# which arguments have to be differentiated?
-		dstr <- format1(drule[[stch]][[nb_args]])
-		ma <- gregexpr("\\._d[1-9][0-9]*", dstr)
-		dgrep <- substring(dstr, ma[[1]], ma[[1]]+attr(ma[[1]], "match.length")-1)
-		if (any(nchar(dgrep) != 0)) {
-			dnum <- as.integer(sub("._d", "", unique(dgrep)))
-			dargs <- lapply(args[dnum], Deriv_, x, env, use.D)
-#cat("st=", format1(st), "\n", sep="")
-#cat("stch=", stch, "\n", sep="")
-#cat("dgrep=", dgrep, "\n", sep=", ")
-#cat("dstr=", dstr, "\n", sep="")
-#cat("dnum=", dnum, "\n", sep=", ")
-			names(dargs) <- paste("._d", dnum, sep="")
-		} else {
-			dargs <- NULL
+		iad <- which(!sapply(rule, is.null))
+		rule <- rule[iad]
+		if (!any(names(which(mc==x)) == names(rule))) {
+			warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
+			return(NULL)
 		}
-		return(Simplify_(do.call("substitute", list(drule[[stch]][[nb_args]], c(args, dargs)))))
+		# dargs are ordered by rule names
+		dargs <- lapply(mc[names(iad)], Deriv_, x, env, use.D)
+		ize <- sapply(dargs, `==`, 0)
+		dargs <- dargs[!ize]
+		rule <- rule[!ize]
+		if (length(rule) == 0) {
+			return(0)
+		}
+		
+		# apply chain rule where needed
+		ione <- sapply(dargs, `==`, 1)
+		imone <- sapply(dargs, `==`, -1)
+		for (i in seq_along(rule)[!(ione|imone)]) {
+			rule[[i]] <- call("*", dargs[[i]], rule[[i]])
+		}
+		for (i in seq_along(rule)[imone]) {
+			rule[[i]] <- call("-", rule[[i]])
+		}
+		return(Simplify(li2sum(rule)))
 	} else if (is.function(st)) {
 		# differentiate its body if can get it
 		args <- as.list(st)[-1]
@@ -350,83 +376,65 @@ Deriv_ <- function(st, x, env, use.D) {
 	}
 }
 
+sl <- function(...) {
+	# substitute arguments and return the list
+	mc <- match.call()
+	as.list(mc)[-1]
+}
 drule <- new.env()
 dsym <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
 
-# first item in the list correspond to a call with one argument
-# second (if any) for two, third for three. NULL means that with
-# this number of argument this function can not be called
-drule[["("]] <- list(quote(._d1)) # (._1) => omit paranthesis
-# linear arithmetics are already handled by dlin
-# exception is maid for unitary plus (it is just omitted)
-#drule[["+"]] <- list(quote(._d1), quote(._d1+._d2)) # +._1, ._1+._2
-#drule[["-"]] <- list(quote(-._d1), quote(._d1-._d2)) # -._1, ._1-._2
-# arithmetic non linear rules
-drule[["*"]] <- list(NULL, quote(._d1*._2+._1*._d2)) # ._1*._2
-drule[["/"]] <- list(NULL, quote(._d1/._2-._1*._d2/._2^2)) # ._1*._2
-# power functions
-drule[["^"]] <- list(NULL, quote(._d1*._2*._1^(._2-1)+._d2*log(._1)*._1^._2)) # ._1^._2
-# example of recursive call
-#drule[["sqrt"]] <- list(Deriv(call("^", as.symbol("._1"), 0.5), "._1", NULL, use.D)) # sqrt(._1)
-# but we prefer a sqrt() formula
-drule[["sqrt"]] <- list(quote(0.5*._d1/sqrt(._1)))
-drule[["log"]] <- list(quote(._d1/._1), quote(._d1/(._1*log(._2))- ._d2*log(._2, ._1)/(._2*log(._2)))) # log(._1), log(._1, b)
-drule[["logb"]] <- drule[["log"]]
-drule[["log2"]] <- list(quote(._d1/(._1*log(2))))
-drule[["log10"]] <- list(quote(._d1/(._1*log(10))))
-drule[["log1p"]] <- list(quote(._d1/(._1+1)))
-drule[["exp"]] <- list(quote(._d1*exp(._1)))
-drule[["expm1"]] <- list(quote(._d1*exp(._1)))
-# trigonometric
-drule[["sin"]] <- list(quote(._d1*cos(._1)))
-drule[["cos"]] <- list(quote(-._d1*sin(._1)))
-drule[["tan"]] <- list(quote(._d1/cos(._1)^2))
-drule[["asin"]] <- list(quote(._d1/sqrt(1-._1^2)))
-drule[["acos"]] <- list(quote(-._d1/sqrt(1-._1^2)))
-drule[["atan"]] <- list(quote(._d1/(1+._1^2)))
-drule[["atan2"]] <- list(NULL, quote((._d1*._2-._d2*._1)/(._1^2+._2^2)))
-drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))
-drule[["cospi"]] <- list(quote(-pi*._d1*sinpi(._1)))
-drule[["tanpi"]] <- list(quote(pi*._d1/cospi(._1)^2))
-# hyperbolic
-drule[["sinh"]] <- list(quote(._d1*cosh(._1)))
-drule[["cosh"]] <- list(quote(._d1*sinh(._1)))
-drule[["tanh"]] <- list(quote(._d1*(1-tanh(._1)^2)))
-drule[["asinh"]] <- list(quote(._d1/sqrt(._1^2+1)))
-drule[["acosh"]] <- list(quote(._d1/sqrt(._1^2-1)))
-drule[["atanh"]] <- list(quote(._d1/(1-._1^2)))
-# code control
-drule[["if"]] <- list(NULL, quote(if (._1) ._d2), quote(if (._1) ._d2 else ._d3))
-# sign depending functions
-drule[["abs"]] <- list(quote(._d1*sign(._1)))
-drule[["sign"]] <- list(0)
-# special functions
-drule[["besselI"]] <- list(NULL,
-	quote(if (._2 == 0) ._d1*besselI(._1, 1) else 0.5*._d1*(besselI(._1, ._2-1) + besselI(._1, ._2+1))),
-	quote((if (._2 == 0) ._d1*besselI(._1, 1, ._3) else 0.5*._d1*(besselI(._1, ._2-1, ._3) + besselI(._1, ._2+1, ._3)))-if (._3) besselI(._1, ._2, TRUE) else 0)
-)
-drule[["besselK"]] <- list(NULL,
-	quote(if (._2 == 0) -._d1*besselK(._1, 1) else -0.5*._d1*(besselK(._1, ._2-1) + besselK(._1, ._2+1))),
-	quote((if (._2 == 0) -._d1*besselK(._1, 1, ._3) else -0.5*._d1*(besselK(._1, ._2-1, ._3) + besselK(._1, ._2+1, ._3)))+if (._3) besselK(._1, ._2, TRUE) else 0)
-)
-drule[["besselJ"]] <- list(NULL,
-	quote(if (._2 == 0) -._d1*besselJ(._1, 1) else 0.5*._d1*(besselJ(._1, ._2-1) - besselJ(._1, ._2+1)))
-)
-drule[["besselY"]] <- list(NULL,
-	quote(if (._2 == 0) -._d1*besselY(._1, 1) else 0.5*._d1*(besselY(._1, ._2-1) - besselY(._1, ._2+1)))
-)
-drule[["gamma"]] <- list(quote(._d1*gamma(._1)*digamma(._1)))
-drule[["lgamma"]] <- list(quote(._d1*digamma(._1)))
-drule[["digamma"]] <- list(quote(._d1*trigamma(._1)))
-drule[["trigamma"]] <- list(quote(._d1*psigamma(._1, 2L)))
-drule[["psigamma"]] <- list(quote(._d1*psigamma(._1, 1L)), quote(._d1*psigamma(._1, ._2+1L)))
-drule[["beta"]] <- list(NULL, quote(beta(._1, ._2)*(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2))))
-drule[["lbeta"]] <- list(NULL, quote(._d1*digamma(._1)+._d2*digamma(._2)-digamma(._1+._2)*(._d1+._d2)))
 
+drule[["*"]] <- sl(e1=e2, e2=e1)
+drule[["^"]] <- sl(e1=e2*e1^(e2-1), e2=e1^e2/log(e1))
+drule[["/"]] <- sl(e1=1/e2, e2=-e1/e2^2)
+drule[["sqrt"]] <- sl(x=0.5/sqrt(x))
+drule[["log"]] <- sl(x=1/(x*log(base)), base=-log(base, x)/(base*log(base)))
+drule[["logb"]] <- drule[["log"]]
+drule[["log2"]] <- sl(x=1/(x*log(2)))
+drule[["log10"]] <- sl(x=1/(x*log(10)))
+drule[["log1p"]] <- sl(x=1/(x+1))
+drule[["exp"]] <- sl(x=exp(x))
+drule[["expm1"]] <- sl(x=exp(x))
+# trigonometric
+drule[["sin"]] <- sl(x=cos(x))
+drule[["cos"]] <- sl(x=-sin(x))
+drule[["tan"]] <- sl(x=1/cos(x)^2)
+drule[["asin"]] <- sl(x=1/sqrt(1-x^2))
+drule[["acos"]] <- sl(x=-1/sqrt(1-x^2))
+drule[["atan"]] <- sl(x=1/(1+x^2))
+drule[["atan2"]] <- sl(y=x/(x^2+y^2), x=-y/(x^2+y^2))
+drule[["sinpi"]] <- sl(x=pi*cospi(x))
+drule[["cospi"]] <- sl(x=-pi*sinpi(x))
+drule[["tanpi"]] <- sl(x=pi/cospi(x)^2)
+# hyperbolic
+drule[["sinh"]] <- sl(x=cosh(x))
+drule[["cosh"]] <- sl(x=sinh(x))
+drule[["tanh"]] <- sl(x=(1-tanh(x)^2))
+drule[["asinh"]] <- sl(x=1/sqrt(x^2+1))
+drule[["acosh"]] <- sl(x=1/sqrt(x^2-1))
+drule[["atanh"]] <- sl(x=1/(1-x^2))
+# sign depending functions
+drule[["abs"]] <- sl(x=sign(x))
+drule[["sign"]] <- sl(x=0)
+# special functions
+drule[["besselI"]] <- sl(x=if (nu == 0) besselI(x, 1, expon.scaled) else 0.5*(besselI(x, nu-1, expon.scaled) + besselI(x, nu+1, expon.scaled))-if (expon.scaled) besselI(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
+drule[["besselK"]] <- sl(x=if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled))+if (expon.scaled) besselK(x, nu, TRUE) else 0)
+drule[["besselJ"]] <- sl(x=if (nu == 0) -besselJ(x, 1) else 0.5*(besselJ(x, nu-1) - besselJ(x, nu+1)), nu=NULL)
+drule[["besselY"]] <- sl(x=if (nu == 0) -besselY(x, 1) else 0.5*(besselY(x, nu-1) - besselY(x, nu+1)), nu=NULL)
+drule[["gamma"]] <- sl(x=gamma(x)*digamma(x))
+drule[["lgamma"]] <- sl(x=digamma(x))
+drule[["digamma"]] <- sl(x=trigamma(x))
+drule[["trigamma"]] <- sl(x=psigamma(x, 2L))
+drule[["psigamma"]] <- sl(x=psigamma(x, deriv+1L), deriv=NULL)
+drule[["beta"]] <- sl(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
+drule[["lbeta"]] <- sl(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
-drule[["dbinom"]] <- list(NULL, NULL, quote(if (._2 == 0) -._1*._d3*(1-._3)^(._1-1) else if (._1 == ._2) ._2*._d3*._3^(._2-1) else ._d3*(._2-._1*._3)*(._1-._2+1)*dbinom(._1, ._2-1, ._3)/(1-._3)^2))
-drule[["dbinom"]][[4]] <- call("if", as.symbol("._4"), call("/", drule[["dbinom"]][[3]], quote(dbinom(._1, ._2, ._3))), drule[["dbinom"]][[3]])
-drule[["dnorm"]] <- list(-._d1*._1*exp(-0.5*._1^2)/sqrt(2*pi), ._d2*(._1-._2)*exp(-0.5*(._1-._2)^2)/sqrt(2*pi)-._d1*(._1-.2)*exp(-0.5*(._1-.2)^2)/sqrt(2*pi), ._d2*(._1-._2)*exp(-0.5*((._1-._2)/._3)^2)/sqrt(2*pi)/s^3-._d1*(._1-.2)*exp(-0.5*((._1-.2)/._3)^2)/sqrt(2*pi)/._3^3+._d3*(((._1 - ._2)^2/._3^2 - 1) * exp(-(0.5 * ((._1 - ._2)/._3)^2))/(._3^2 * sqrt(2 * pi))))
+drule[["dbinom"]] <- sl(x=NULL, size=NULL, log=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1))
+drule[["dnorm"]] <- sl(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
+	mean=(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
+	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
+	log=NULL)
