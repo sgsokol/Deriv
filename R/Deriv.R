@@ -331,7 +331,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		}
 		# prepare replacement list
 		da <- args(stch)
-		mc <- as.list(match.call(def=da, call=st))[-1]
+		mc <- as.list(match.call(definition=da, call=st))[-1]
 		da <- as.list(da)
 		da <- da[-length(da)] # all declared arguments with default values
 		aa <- modifyList(da, mc) # all arguments with actual values

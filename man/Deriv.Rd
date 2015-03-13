@@ -168,8 +168,8 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 # Custom derivation rule
 \dontrun{
   myfun <- function(x, y=TRUE) NULL # do something usefull
-  dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x. It is not differentiable by a logical y.
-  drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL)
+  dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
+  drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL) # y is just a logical
   Deriv(myfun(z^2, FALSE), "z")
   # 2 * (z * dmyfun(z^2, FALSE))
 }
