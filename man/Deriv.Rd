@@ -2,6 +2,7 @@
 \name{Deriv}
 \alias{Deriv}
 \alias{drule}
+\alias{qlist}
 \title{Symbollic differentiation of an expression or function}
 \usage{
 Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
@@ -34,9 +35,12 @@ it is set by default to .GlobalEnv}
 must be used for differentiation of basic expressions.}
 
 \item{cache.exp}{An optional logical (default TRUE), indicates if
- final expression must be optimized with cached subexpressions.
- If enabled, repeated calculations are made only once and their
- results stored in cache variables which are then reused.}
+final expression must be optimized with cached subexpressions.
+If enabled, repeated calculations are made only once and their
+results stored in cache variables which are then reused.}
+
+\item{...}{(in \code{qlist()}) is a suite of named unevaluated expressions.
+ It is used to add derivative rules to \code{drule} environment.}
 }
 \value{
 \itemize{
@@ -83,7 +87,9 @@ So, here are the advantages of this implementation:
  }
  \item It's easy to add custom entries to the derivatives table, e.g.
 
-  \code{drule[["cos"]] <- list(-._d1*sin(._1))}
+  \code{drule[["cos"]] <- qlist(x=-sin(x))}
+
+  The chain rule will be automatically applied if needed.
  \item The output is an executable function, which makes it suitable
      for use in optimization problems.
  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
@@ -95,11 +101,11 @@ exported in the package namescape.
 As their names indicate, they contain tables of derivative and
 simplification rules.
 To see the list of defined rules do \code{ls(drule)}.
-To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- list(quote(pi*._d1*cospi(._1)))}.
-Here, "._1" stands for the "first arguments", "._d1" for the first derivative of the first arguments. For a function that might have more than one argument,
-e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with one rule
-per number of possible arguments. See \code{drule$log} for an example to follow.
-After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}
+To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- qlist(x=pi*cospi(x))}.
+Here, "x" stands for the first and unique argument in \code{sinpi()} definition. For a function that might have more than one argument,
+e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with a named rule
+per argument. See \code{drule$log} for an example to follow.
+After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 
 NB. In \code{abs()} and \code{sign()} function, singularity treatment at point 0 is left to user's care.
 
@@ -125,7 +131,7 @@ NB2. In Bessel functions, derivatives are calculated only by the first argument,
 \dontrun{Deriv(~ f(x, y^2), "y")}
 # -(2 * (y * sin(x) * sin(y^2)))
 
-\dontrun{Deriv(quote(f(x, y^2)), c("x", "y"))}
+\dontrun{Deriv(quote(f(x, y^2)), c("x", "y"), cache.exp=FALSE)}
 # c(x = cos(x) * cos(y^2), y = -(2 * (y * sin(x) * sin(y^2))))
 
 \dontrun{Deriv(expression(sin(x^2) * y), "x")}
@@ -156,8 +162,21 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 #   .d_x <- 2 * ((x - m)/s^2)
 #   -(0.5 * (.d_x * exp(-(0.5 * d))))
 #}
+
+# Custom derivation rule
+\dontrun{
+  myfun <- function(x, y=TRUE) NULL # do something usefull
+  dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x. It is not differentiable by a logical y.
+  drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL)
+  Deriv(myfun(z^2, FALSE), "z")
+  # 2 * (z * dmyfun(z^2, FALSE))
+}
 }
 \concept{
 symbollic differentiation
+\usage{
+Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
+qlist(...)
+}
 }
 

@@ -3,11 +3,9 @@ Version 3.1
 
 * 2015-03-??
  - new syntaxe for the rule table to simplify rule writing (chain rule is implicite, non need for quote() calls)
- - added dbinom() and dnorm() to derivate table
- - fixed simplification of k-1-k to 0-1
- - fixed simplification of 1+x-1 to 1+x-1
- - fixed Deriv(p*(1-p))
- - fixed simplification of 3-5*x to 3*1-5*x
+ - added dbinom() and dnorm() to derivative table
+ - sums are ordered alphabeticaly now
+ - several bugs are fixed
 
 Version 3.0
 ===========
