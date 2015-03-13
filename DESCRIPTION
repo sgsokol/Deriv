@@ -13,3 +13,4 @@ Description: R-based solution for symbolic differentiation. It admits
 License: GPL (>=3)
 Suggests:
     testthat
+BugReports: https://github.com/sgsokol/Deriv/issues

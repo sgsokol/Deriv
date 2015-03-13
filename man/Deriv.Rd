@@ -179,8 +179,5 @@ Andrew Clausen (original version) and Serguei Sokol (maintainer)
 }
 \concept{
 symbollic differentiation
-\usage{
-   Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
-}
 }
 

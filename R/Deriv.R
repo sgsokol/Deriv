@@ -2,10 +2,6 @@
 #' @title Symbollic differentiation of an expression or function
 #' @aliases Deriv drule qlist
 #' @concept symbollic differentiation
-#' \usage{
-#'    Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
-#' }
-#' 
 #' 
 #' @param f An expression or function to be differentiated.
 #'  f can be \itemize{
@@ -155,8 +151,8 @@
 #' # Custom derivation rule
 #' \dontrun{
 #'   myfun <- function(x, y=TRUE) NULL # do something usefull
-#'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x. It is not differentiable by a logical y.
-#'   drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL)
+#'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
+#'   drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL) # y is just a logical
 #'   Deriv(myfun(z^2, FALSE), "z")
 #'   # 2 * (z * dmyfun(z^2, FALSE))
 #' }
