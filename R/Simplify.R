@@ -120,8 +120,9 @@ Simplify_ <- function(expr) {
 	} else if (add && is.uminus(a) && !is.uminus(b)) {
 		a <- b
 		b <- expr[[2]][[2]]
+		add <- FALSE
 		expr <- call("-", a, b)
-	} else if (format1(a) == format1(b)) {
+	} else if (identical(a, b)) {
 		return(if (add) Simplify_(call("*", 2, a)) else 0)
 	} else if (!is.call(a) && !is.call(b)) {
 		return(expr) # nothing to simplify
@@ -264,7 +265,7 @@ p_fa)
 		if (sminus) substitute(-b) else b
 	} else if (b == 1) {
 		if (sminus) substitute(-a) else a
-	} else if (div && format1(a) == format1(b)) {
+	} else if (div && identical(a, b)) {
 		if (sminus) -1 else 1
 	} else {
 #browser()
@@ -412,24 +413,25 @@ p_fa)
 Simplify.log <- function(expr) {
 	if (is.call(expr[[2]])) {
 		# the argument of log is a function
-		if (expr[[2]][[1]] == as.symbol("^")) {
+		subf <- as.character(expr[[2]][[1]])
+		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			expr[[2]] <- expr[[2]][[2]]
 			expr <- Simplify_(call("*", p, expr))
-		} else if (expr[[2]][[1]] == as.symbol("exp")) {
+		} else if (subf == "exp") {
 			if (length(expr) == 2)
 				expr <- expr[[2]][[2]]
 			else
 				expr <- Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
-		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
+		} else if (subf == "sqrt") {
 			expr[[2]] <- expr[[2]][[2]]
 			expr <- Simplify_(call("*", 0.5, expr))
-		} else if (expr[[2]][[1]] == as.symbol("*")) {
+		} else if (subf == "*") {
 			a <- expr
 			a[[2]] <- expr[[2]][[2]]
 			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
 			expr <- Simplify_(call("+", a, expr))
-		} else if (expr[[2]][[1]] == as.symbol("/")) {
+		} else if (subf == "/") {
 			a <- expr
 			a[[2]] <- expr[[2]][[2]]
 			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
@@ -438,7 +440,7 @@ Simplify.log <- function(expr) {
 			expr
 		}
 	}
-	if (is.call(expr) && expr[[1]] == as.symbol("log") && length(expr) == 3 && format1(expr[[2]]) == format1(expr[[3]])) {
+	if (length(expr) == 3 && identical(expr[[2]], expr[[3]])) {
 		1
 	} else {
 		expr
@@ -447,15 +449,16 @@ Simplify.log <- function(expr) {
 Simplify.sqrt <- function(expr) {
 	if (is.call(expr[[2]])) {
 		# the argument of sqrt is a function
-		if (expr[[2]][[1]] == as.symbol("^")) {
+		subf <- as.character(expr[[2]][[1]])
+		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			Simplify_(call("^",  call("abs", expr[[2]][[2]]), call("/", p, 2)))
-		} else if (expr[[2]][[1]] == as.symbol("exp")) {
+		} else if (subf == "exp") {
 			expr[[2]][[2]] <- Simplify_(call("/", expr[[2]][[2]], 2))
 			expr[[2]]
-		} else if (expr[[2]][[1]] == as.symbol("sqrt")) {
+		} else if (subf == "sqrt") {
 			Simplify_(call("^", expr[[2]][[2]], 0.25))
-		} else if (expr[[2]][[1]] == as.symbol("*") && format1(expr[[2]][[2]]) == format1(expr[[2]][[3]])) {
+		} else if (subf == "*" && identical(expr[[2]][[2]], expr[[2]][[3]])) {
 			Simplify_(call("abs", expr[[2]][[2]]))
 		} else {
 			expr
@@ -468,11 +471,12 @@ Simplify.abs <- function(expr) {
 	if (is.uminus(expr[[2]])) {
 		expr[[2]] <- expr[[2]][[2]]
 	} else if (is.call(expr[[2]])) {
-		if (expr[[2]][[1]] == as.symbol("^")) {
+		subf <- as.character(expr[[2]][[1]])
+		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			if (is.numeric(p) && p%%2 == 0)
 				expr <- expr[[2]]
-		} else if (expr[[2]][[1]] == as.symbol("exp") || expr[[2]][[1]] == as.symbol("sqrt")) {
+		} else if (subf == "exp" || subf == "sqrt") {
 			expr <- expr[[2]]
 		}
 	}
@@ -483,11 +487,12 @@ Simplify.sign <- function(expr) {
 		expr[[2]] <- expr[[2]][[2]]
 		expr <- call("-", expr)
 	} else if (is.call(expr[[2]])) {
-		if (expr[[2]][[1]] == as.symbol("^")) {
+		subf <- as.character(expr[[2]][[1]])
+		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			if (is.numeric(p) && p%%2 == 0)
 				expr <- 1
-		} else if (expr[[2]][[1]] == as.symbol("exp") || expr[[2]][[1]] == as.symbol("sqrt")) {
+		} else if (subf == "exp" || subf == "sqrt") {
 			expr <- 1
 		}
 	}
@@ -500,9 +505,18 @@ Simplify.if <- function(expr) {
 	} else if (length(expr) == 4) {
 		if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!cond)) {
 			expr <- expr[[4]]
-		} else if (format1(expr[[3]]) == format1(expr[[4]])) {
+		} else if (identical(expr[[3]], expr[[4]])) {
 			expr <- expr[[3]]
 		}
+	}
+	expr
+}
+Simplify.bessel <- function(expr) {
+	if (length(expr) < 4)
+		return(expr)
+	cond <- expr[[4]]
+	if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!cond)) {
+		expr[[4]] <- NULL
 	}
 	expr
 }
@@ -738,19 +752,23 @@ lc2expr <- function(lc) {
 	# separate in positive and negative
 	smin <- sapply(lc, "[[", "sminus")
 	epos <- lapply(lc[which(!smin)], nd2expr)
+	epos <- epos[order(sapply(epos, format1))]
 	eneg <- lapply(lc[which(smin)], nd2expr, sminus=FALSE)
+	eneg <- eneg[order(sapply(eneg, format1))]
 	if (length(epos) == 0)
 		return(if (length(eneg) == 0) 0 else Simplify_(call("-", li2sum(eneg))))
 	else
 		return(if (length(eneg) == 0) li2sum(epos) else Simplify_(call("-", li2sum(epos), li2sum(eneg))))
 }
+
 li2sum <- function(li) {
 	# form a long sum of expressions from the list li
-	if (length(li) == 0)
+	len <- length(li)
+	if (len == 0)
 		0
-	else if (length(li) == 1)
+	else if (len == 1)
 		li[[1]]
-	else if (length(li) == 2)
+	else if (len == 2)
 		if (li[[1]] == 0)
 			li[[2]]
 		else if (li[[2]] == 0)
@@ -758,7 +776,7 @@ li2sum <- function(li) {
 		else
 			call("+", li[[1]], li[[2]])
 	else
-		call("+", li[[1]], li2sum(li[-1]))
+		call("+", li2sum(li[-len]), li[[len]])
 }
 
 simplifications <- new.env()
@@ -776,3 +794,5 @@ assign("sqrt", `Simplify.sqrt`, envir=simplifications)
 assign("abs", `Simplify.abs`, envir=simplifications)
 assign("sign", `Simplify.sign`, envir=simplifications)
 assign("if", `Simplify.if`, envir=simplifications)
+assign("besselI", `Simplify.bessel`, envir=simplifications)
+assign("besselK", `Simplify.bessel`, envir=simplifications)
