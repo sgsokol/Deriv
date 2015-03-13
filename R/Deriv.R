@@ -3,8 +3,7 @@
 #' @aliases Deriv drule qlist
 #' @concept symbollic differentiation
 #' \usage{
-#' Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
-#' qlist(...)
+#'    Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
 #' }
 #' 
 #' 
@@ -100,6 +99,7 @@
 #' 
 #' NB2. In Bessel functions, derivatives are calculated only by the first argument,
 #'      not by the \code{nu} argument which is supposed to be constant.
+#' @author Andrew Clausen (original version) and Serguei Sokol (maintainer)
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}
@@ -384,6 +384,7 @@ Deriv_ <- function(st, x, env, use.D) {
 	}
 }
 
+#' @rdname Deriv
 qlist <- function(...) {
 	# substitute arguments and return the list
 	mc <- match.call()

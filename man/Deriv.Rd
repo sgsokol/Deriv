@@ -8,6 +8,8 @@
 Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
   (is.character(f)) parse(text = f) else f), env = if (is.function(f))
   environment(f) else parent.frame(), use.D = FALSE, cache.exp = TRUE)
+
+qlist(...)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -172,11 +174,13 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
   # 2 * (z * dmyfun(z^2, FALSE))
 }
 }
+\author{
+Andrew Clausen (original version) and Serguei Sokol (maintainer)
+}
 \concept{
 symbollic differentiation
 \usage{
-Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
-qlist(...)
+   Deriv(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE)
 }
 }
 
