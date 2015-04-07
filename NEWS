@@ -2,7 +2,7 @@ Version 3.2
 ===========
 
 * 2015-04-07
- - fixed date format in v3.1 notes
+ - fixed date format in DESCRIPTION
  - reference to rSymPy in the package manual
 
 Version 3.1
