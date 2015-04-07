@@ -1,7 +1,7 @@
 Version 3.1
 ===========
 
-* 2015-03-??
+* 2015-04-07
  - new syntaxe for the rule table to simplify rule writing (chain rule is implicite, non need for quote() calls)
  - added dbinom() and dnorm() to derivative table
  - sums are ordered alphabeticaly now
