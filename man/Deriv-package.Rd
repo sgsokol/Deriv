@@ -62,7 +62,7 @@ Maintainer: Serguei Sokol (sokol at insa-toulouse.fr)
 }
 \keyword{ package }
 \seealso{
-\code{\link{D}}, \code{\link{deriv}}, package Ryacas
+\code{\link{D}}, \code{\link{deriv}}, packages Ryacas, rSymPy
 }
 \examples{
 \dontrun{f <- function(x) x^2}
