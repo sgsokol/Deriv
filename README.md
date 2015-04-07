@@ -1,7 +1,7 @@
 Deriv
 =====
 
-Symbollic differentiation
+Symbolic differentiation
 -------------------------
 The original version of this software was written in R by Andrew Clausen (clausen at econ.upenn.edu) in 2007.
 
