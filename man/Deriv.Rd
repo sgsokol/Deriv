@@ -98,7 +98,7 @@ So, here are the advantages of this implementation:
      be differentiated (cf. examples section).
 }
 
-Two working environments \code{drule} and \code{simplifications} are
+Two work environments \code{drule} and \code{simplifications} are
 exported in the package namescape.
 As their names indicate, they contain tables of derivative and
 simplification rules.
@@ -157,7 +157,7 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 }
 # c(xx = 2 * xx, yy = 2 * yy)
 
-# Automatic differentiation (AD), note itermediate variable \\code{d} assignment
+# Automatic differentiation (AD), note itermediate variable 'd' assignment
 \dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x")}
 #{
 #   d <- ((x - m)/s)^2
