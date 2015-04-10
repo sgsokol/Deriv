@@ -152,6 +152,7 @@ fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
 myfun <- function(x, y=TRUE) NULL # do something usefull
 dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
 drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL) # y is just a logical
+#cat("Deriv(myfun)=", format1(Deriv(myfun)), "\n")
 
 test_that("doc examples", {
    expect_equal_format1(Deriv(fsq), function (x) 2 * x)

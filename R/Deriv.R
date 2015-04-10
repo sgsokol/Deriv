@@ -159,6 +159,7 @@
 
 Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE) {
 	tf <- try(f, silent=TRUE)
+	fch <- deparse(substitute(f))
 	if (inherits(tf, "try-error")) {
 		f <- substitute(f)
 	}
@@ -195,8 +196,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		format1(res)
 	} else if (is.function(f)) {
 		b <- body(f)
-		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External"))) || (is.null(b) && is.primitive(f))) {
-			fch <- deparse(substitute(f))
+		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
 				acall <- as.call(c(as.symbol(fch), arg))
