@@ -1,1 +1,1 @@
-export(Deriv, Simplify, format1, drule, simplifications)
+export(Deriv, Simplify, qlist, format1, drule, simplifications)

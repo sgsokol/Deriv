@@ -34,7 +34,7 @@ Here are the advantages this implementation:
    }
  \item It's easy to add custom entries to the derivatives table, e.g.
       
-      \code{drule[["cos"]] <- list(quote(-._d1*sin(._1)))}
+      \code{drule[["cos"]] <- qlist(x=-sin(x))}
  \item The output can be an executable function, which makes it suitable for use in
 optimization problems.
 }

@@ -79,17 +79,17 @@ test_that("special functions", {
    expect_equal_deriv(besselI(x, 1), 0.5 * (besselI(x, 0) + besselI(x, 2)))
    expect_equal_deriv(besselI(x, 1, FALSE), 0.5 * (besselI(x, 0) + besselI(x, 2)))
    expect_equal_deriv(besselI(x, 1, TRUE), 0.5 * (besselI(x, 0, TRUE) + besselI(x, 2, TRUE))-besselI(x, 1, TRUE))
-   expect_equal_deriv(besselI(x, n), if (n == 0) besselI(x, 1) else 0.5 * (besselI(x, n + 1) + besselI(x, n - 1)))
-   expect_equal_deriv(besselI(x, n, TRUE), (if (n == 0) besselI(x, 1, TRUE) else 0.5 * (besselI(x, n + 1, TRUE) + besselI(x, n - 1, TRUE)))-besselI(x, n, TRUE))
+   expect_equal_deriv(besselI(x, n), if (n == 0) besselI(x, 1) else 0.5 * (besselI(x, n - 1) + besselI(x, n + 1)))
+   expect_equal_deriv(besselI(x, n, TRUE), (if (n == 0) besselI(x, 1, TRUE) else 0.5 * (besselI(x, n - 1, TRUE) + besselI(x, n + 1, TRUE)))-besselI(x, n, TRUE))
    expect_equal_deriv(besselK(x, 0), -besselK(x, 1))
    expect_equal_deriv(besselK(x, 0, FALSE), -besselK(x, 1))
    expect_equal_deriv(besselK(x, 0, TRUE), besselK(x, 0, TRUE)-besselK(x, 1, TRUE))
    expect_equal_deriv(besselK(x, 1), -(0.5 * (besselK(x, 0) + besselK(x, 2))))
    expect_equal_deriv(besselK(x, 1, FALSE), -(0.5 * (besselK(x, 0) + besselK(x, 2))))
    expect_equal_deriv(besselK(x, 1, TRUE), besselK(x, 1, TRUE)-0.5 * (besselK(x, 0, TRUE) + besselK(x, 2, TRUE)))
-   expect_equal_deriv(besselK(x, n), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n + 1) + besselK(x, n - 1))))
-   expect_equal_deriv(besselK(x, n, FALSE), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n + 1) + besselK(x, n - 1))))
-   expect_equal_deriv(besselK(x, n, TRUE), besselK(x, n, TRUE)+if (n == 0) -besselK(x, 1, TRUE) else -(0.5 * (besselK(x, n + 1, TRUE) + besselK(x, n - 1, TRUE))))
+   expect_equal_deriv(besselK(x, n), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n - 1) + besselK(x, n + 1))))
+   expect_equal_deriv(besselK(x, n, FALSE), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n - 1) + besselK(x, n + 1))))
+   expect_equal_deriv(besselK(x, n, TRUE), besselK(x, n, TRUE)+if (n == 0) -besselK(x, 1, TRUE) else -(0.5 * (besselK(x, n - 1, TRUE) + besselK(x, n + 1, TRUE))))
    expect_equal_deriv(besselJ(x, 0), -besselJ(x, 1))
    expect_equal_deriv(besselJ(x, 1), 0.5 * (besselJ(x, 0) - besselJ(x, 2)))
    expect_equal_deriv(besselJ(x, n), if (n == 0) -besselJ(x, 1) else 0.5 * (besselJ(x, n - 1) - besselJ(x, n + 1)))
@@ -149,6 +149,10 @@ fsq <- function(x) x^2
 fsc <- function(x, y) sin(x) * cos(y)
 f_ <- Deriv(fsc)
 fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
+myfun <- function(x, y=TRUE) NULL # do something usefull
+dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
+drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL) # y is just a logical
+
 test_that("doc examples", {
    expect_equal_format1(Deriv(fsq), function (x) 2 * x)
    expect_equal_format1(Deriv(fsc), function (x, y) c(x = cos(x) * cos(y), y = -(sin(x) * sin(y))))
@@ -158,4 +162,5 @@ test_that("doc examples", {
    expect_equal(Deriv(expression(sin(x^2) * y), "x"), expression(2 * (x * y * cos(x^2))))
    expect_equal(Deriv("sin(x^2) * y", "x"), "2 * (x * y * cos(x^2))")
    expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
+   expect_equal(Deriv(myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
 })

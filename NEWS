@@ -1,10 +1,16 @@
+Version 3.3
+===========
+
+* 2015-04-10
+ - fixed qlist() export in namespace (reported by Irucka Embry)
+ - fixed drule example in Deriv-package manual and some other minor typos
+
 Version 3.2
 ===========
 
 * 2015-04-07
  - fixed date format in DESCRIPTION
  - reference to rSymPy in the package manual
-
 Version 3.1
 ===========
 
