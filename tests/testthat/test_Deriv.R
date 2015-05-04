@@ -63,13 +63,17 @@ test_that("elementary functions", {
    expect_equal_deriv(log1p(x), 1/(x+1))
    expect_equal_deriv(abs(x), sign(x))
    expect_equal_deriv(sign(x), 0)
-   expect_equal_deriv(sinpi(x), pi*cospi(x))
-   expect_equal_deriv(cospi(x), -(pi*sinpi(x)))
-   expect_equal_deriv(tanpi(x), pi/cospi(x)**2)
    expect_equal_deriv(sinh(x), cosh(x))
    expect_equal_deriv(cosh(x), sinh(x))
    expect_equal_deriv(tanh(x), 1-tanh(x)^2)
 })
+if (getRversion() >= "3.1.0") {
+   test_that("trigonometric functions with pi", {
+      expect_equal_deriv(sinpi(x), pi*cospi(x))
+      expect_equal_deriv(cospi(x), -(pi*sinpi(x)))
+      expect_equal_deriv(tanpi(x), pi/cospi(x)**2)
+   })
+}
 test_that("special functions", {
    expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(x) - digamma(x + y)))
    expect_equal_deriv(beta(x, y), beta(x, y) * (digamma(y) - digamma(x + y)), "y")

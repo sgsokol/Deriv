@@ -329,8 +329,15 @@ Deriv_ <- function(st, x, env, use.D) {
 		if (use.D) {
 			return(Simplify(D(st, x)))
 		}
+#if (stch == "myfun")
+#	browser()
 		# prepare replacement list
-		da <- args(stch)
+		da <- try(args(stch), silent=TRUE)
+		if (inherits(da, "try-error")) {
+			# last chance to get unknown function definition
+			# may be it is a user defined one?
+			da <- args(get(stch, mode="function", envir=env))
+		}
 		mc <- as.list(match.call(definition=da, call=st))[-1]
 		da <- as.list(da)
 		da <- da[-length(da)] # all declared arguments with default values
@@ -412,9 +419,11 @@ drule[["asin"]] <- qlist(x=1/sqrt(1-x^2))
 drule[["acos"]] <- qlist(x=-1/sqrt(1-x^2))
 drule[["atan"]] <- qlist(x=1/(1+x^2))
 drule[["atan2"]] <- qlist(y=x/(x^2+y^2), x=-y/(x^2+y^2))
-drule[["sinpi"]] <- qlist(x=pi*cospi(x))
-drule[["cospi"]] <- qlist(x=-pi*sinpi(x))
-drule[["tanpi"]] <- qlist(x=pi/cospi(x)^2)
+if (getRversion() >= "3.1.0") {
+   drule[["sinpi"]] <- qlist(x=pi*cospi(x))
+   drule[["cospi"]] <- qlist(x=-pi*sinpi(x))
+   drule[["tanpi"]] <- qlist(x=pi/cospi(x)^2)
+}
 # hyperbolic
 drule[["sinh"]] <- qlist(x=cosh(x))
 drule[["cosh"]] <- qlist(x=sinh(x))
