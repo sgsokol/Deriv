@@ -1,4 +1,6 @@
 context("Symbolic simplifications")
+lc_orig=Sys.getlocale(category = "LC_COLLATE")
+Sys.setlocale(category = "LC_COLLATE", locale = "C")
 
 expect_equal_lang=function(t, r) {
    test=substitute(t)
@@ -55,3 +57,8 @@ test_that("factorizations", {
    expect_equal_lang(a+1-a, 1)
    expect_equal_lang(1+x-1, x)
 })
+test_that("term order", {
+   expect_equal_lang(a(x+1)+a(x-1), a(x+1)+a(x-1)) # no change must occur
+   expect_equal_lang(a(x-1)+a(x+1), a(x+1)+a(x-1)) # "+" is before "-" in C collate. It is inverse in fr_FR.UTF8
+})
+Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

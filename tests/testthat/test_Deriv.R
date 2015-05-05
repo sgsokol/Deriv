@@ -1,4 +1,7 @@
-context("Symbolic differentiation rules")
+context(paste("Symbolic differentiation rules v", packageVersion("Deriv"), sep=""))
+lc_orig=Sys.getlocale(category = "LC_COLLATE")
+Sys.setlocale(category = "LC_COLLATE", locale = "C")
+
 f=function(x) {} # empty place holder
 
 expect_equal_deriv <- function(t, r, nmvar="x") {
@@ -23,8 +26,10 @@ expect_equal_deriv <- function(t, r, nmvar="x") {
    # compare as function
    body(f)=test
    ans=Deriv(f, nmvar, cache.exp=FALSE)
-   #print(deparse(ans))
    body(f)=ref
+#cat("\nf deriv=", format1(ans), "\n", sep="")
+#cat("\nsimplify=", format1(Simplify(ans)), "\n", sep="")
+#cat("f ref=", format1(f), "\n", sep="")
    eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
    # compare with central differences
    x=seq(0.1, 1, len=10)
@@ -83,17 +88,17 @@ test_that("special functions", {
    expect_equal_deriv(besselI(x, 1), 0.5 * (besselI(x, 0) + besselI(x, 2)))
    expect_equal_deriv(besselI(x, 1, FALSE), 0.5 * (besselI(x, 0) + besselI(x, 2)))
    expect_equal_deriv(besselI(x, 1, TRUE), 0.5 * (besselI(x, 0, TRUE) + besselI(x, 2, TRUE))-besselI(x, 1, TRUE))
-   expect_equal_deriv(besselI(x, n), if (n == 0) besselI(x, 1) else 0.5 * (besselI(x, n - 1) + besselI(x, n + 1)))
-   expect_equal_deriv(besselI(x, n, TRUE), (if (n == 0) besselI(x, 1, TRUE) else 0.5 * (besselI(x, n - 1, TRUE) + besselI(x, n + 1, TRUE)))-besselI(x, n, TRUE))
+   expect_equal_deriv(besselI(x, n), if (n == 0) besselI(x, 1) else 0.5 * (besselI(x, n + 1) + besselI(x, n - 1)))
+   expect_equal_deriv(besselI(x, n, TRUE), (if (n == 0) besselI(x, 1, TRUE) else 0.5 * (besselI(x, n + 1, TRUE) + besselI(x, n - 1, TRUE)))-besselI(x, n, TRUE))
    expect_equal_deriv(besselK(x, 0), -besselK(x, 1))
    expect_equal_deriv(besselK(x, 0, FALSE), -besselK(x, 1))
    expect_equal_deriv(besselK(x, 0, TRUE), besselK(x, 0, TRUE)-besselK(x, 1, TRUE))
    expect_equal_deriv(besselK(x, 1), -(0.5 * (besselK(x, 0) + besselK(x, 2))))
    expect_equal_deriv(besselK(x, 1, FALSE), -(0.5 * (besselK(x, 0) + besselK(x, 2))))
    expect_equal_deriv(besselK(x, 1, TRUE), besselK(x, 1, TRUE)-0.5 * (besselK(x, 0, TRUE) + besselK(x, 2, TRUE)))
-   expect_equal_deriv(besselK(x, n), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n - 1) + besselK(x, n + 1))))
-   expect_equal_deriv(besselK(x, n, FALSE), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n - 1) + besselK(x, n + 1))))
-   expect_equal_deriv(besselK(x, n, TRUE), besselK(x, n, TRUE)+if (n == 0) -besselK(x, 1, TRUE) else -(0.5 * (besselK(x, n - 1, TRUE) + besselK(x, n + 1, TRUE))))
+   expect_equal_deriv(besselK(x, n), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n + 1) + besselK(x, n - 1))))
+   expect_equal_deriv(besselK(x, n, FALSE), if (n == 0) -besselK(x, 1) else -(0.5 * (besselK(x, n + 1) + besselK(x, n - 1))))
+   expect_equal_deriv(besselK(x, n, TRUE), besselK(x, n, TRUE)+if (n == 0) -besselK(x, 1, TRUE) else -(0.5 * (besselK(x, n + 1, TRUE) + besselK(x, n - 1, TRUE))))
    expect_equal_deriv(besselJ(x, 0), -besselJ(x, 1))
    expect_equal_deriv(besselJ(x, 1), 0.5 * (besselJ(x, 0) - besselJ(x, 2)))
    expect_equal_deriv(besselJ(x, n), if (n == 0) -besselJ(x, 1) else 0.5 * (besselJ(x, n - 1) - besselJ(x, n + 1)))
@@ -169,3 +174,4 @@ test_that("doc examples", {
    expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
    expect_equal(Deriv(myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
 })
+Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

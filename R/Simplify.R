@@ -752,9 +752,17 @@ lc2expr <- function(lc) {
 	# separate in positive and negative
 	smin <- sapply(lc, "[[", "sminus")
 	epos <- lapply(lc[which(!smin)], nd2expr)
-	epos <- epos[order(sapply(epos, format1))]
+	if (length(epos) > 1) {
+#cat("epos orig=", sapply(epos, format1), sep="\n")
+#cat("epos order=", order(sapply(epos, format1)), sep="\n")
+#cat("order - +=", order(c("-", "+")), sep="\n")
+		epos <- epos[order(sapply(epos, format1), decreasing = FALSE)]
+#cat("epos=", sapply(epos, format1), sep="\n")
+	}
 	eneg <- lapply(lc[which(smin)], nd2expr, sminus=FALSE)
-	eneg <- eneg[order(sapply(eneg, format1))]
+	if (length(eneg) > 1) {
+		eneg <- eneg[order(sapply(eneg, format1))]
+	}
 	if (length(epos) == 0)
 		return(if (length(eneg) == 0) 0 else Simplify_(call("-", li2sum(eneg))))
 	else

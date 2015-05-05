@@ -3,6 +3,7 @@ Version 3.4
 
 * 2015-05-05
  - fixed usage of sinpi() and alike in R older than 3.1.0 (reported by R-core team)
+ - fixed dependence of term order on LC_COLLATE in test suite
 
 Version 3.3
 ===========
