@@ -2,6 +2,32 @@ context(paste("Symbolic differentiation rules v", packageVersion("Deriv"), sep="
 lc_orig=Sys.getlocale(category = "LC_COLLATE")
 Sys.setlocale(category = "LC_COLLATE", locale = "C")
 
+num_test_deriv <- function(fun, larg, narg=1, h=1.e-5, tolerance=2000*h^2) {
+   # test the first derivative of a function fun() (given as a character
+   # string) by Deriv() and central difference.
+   # larg is a named list of parameters to pass to fun
+   # narg indicates by which of fun's arguments the differentiation must be made
+   # h is the small perturbation in the central differentiation: x-h and x+h 
+   # Parameter tolerance is used in comparison test.
+   if (length(names(larg)) == 0)
+      stop(sprintf("No argument for function %s() to differentiate. There must be at leat one argument.", fun))
+   if (h <= 0)
+      stop("Parameter h must be positive")
+   larg_ph=larg_mh=larg
+   larg_ph[[narg]]=larg_ph[[narg]]+h
+   larg_mh[[narg]]=larg_mh[[narg]]-h
+   f_ph=do.call(fun, larg_ph)
+   f_mh=do.call(fun, larg_mh)
+   dnum=(f_ph-f_mh)/(2*h)
+   sym_larg=larg
+   nm_x=names(larg)[narg]
+   sym_larg[[narg]]=as.symbol(nm_x)
+   flang=as.symbol(fun)
+   dsym=do.call(as.function(c(sym_larg, Deriv(as.call(c(flang, sym_larg)), nm_x))), larg, quote=TRUE)
+#cat(sprintf("comparing %s by %s\n", format1(as.call(c(flang, larg))), nm_x))
+   expect_equal(dnum, dsym, tolerance=tolerance, info=sprintf("%s by %s", format1(as.call(c(flang, larg))), nm_x))
+}
+
 f=function(x) {} # empty place holder
 
 expect_equal_deriv <- function(t, r, nmvar="x") {
@@ -159,6 +185,35 @@ test_that("error reporting", {
    expect_error(Deriv(~x+rnorm(x), "x"), "is not in derivative table", fixed=TRUE)
 })
 
+# systematic central difference tests
+set.seed(7)
+test_that("central differences", {
+   for (nm_f in ls(drule)) {
+      rule <- drule[[nm_f]]
+      larg <- rule
+      narg <- length(larg)
+      larg[] <- runif(narg)
+      # possible logical parameters are swithed on/off
+      fargs=formals(nm_f)
+      ilo=sapply(fargs, is.logical)
+      if (any(ilo))
+         logrid=do.call(expand.grid, rep(list(c(TRUE, FALSE)), sum(ilo)))
+      for (iarg in seq_len(narg)) {
+         if (is.null(rule[[iarg]]))
+            next
+         if (is.null(fargs) || !any(ilo)) {
+            suppressWarnings(num_test_deriv(nm_f, larg, narg=iarg))
+         } else {
+            apply(logrid, 1, function(lv) {
+               lolarg=larg
+               lolarg[ilo]=lv
+               suppressWarnings(num_test_deriv(nm_f, lolarg, narg=iarg))
+            })
+         }
+      }
+   }
+})
+
 # doc examples
 fsq <- function(x) x^2
 fsc <- function(x, y) sin(x) * cos(y)
@@ -180,4 +235,5 @@ test_that("doc examples", {
    expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
    expect_equal(Deriv(myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
 })
+drule[["myfun"]] <- NULL
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)
