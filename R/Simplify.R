@@ -21,10 +21,6 @@
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
 Simplify <- function(expr, env=parent.frame()) {
-	te <- try(expr, silent=TRUE)
-	if (inherits(te, "try-error")) {
-		expr <- substitute(expr)
-	}
 	if (is.expression(expr)) {
 		as.expression(Simplify_(expr[[1]]))
 	} else if (is.function(expr)) {

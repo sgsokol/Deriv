@@ -195,6 +195,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 			res <- Cache(res)
 		format1(res)
 	} else if (is.function(f)) {
+#browser()
 		b <- body(f)
 		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
@@ -305,6 +306,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		} else if (is.uminus(st)) {
 			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D))))
 		} else if (stch == "(") {
+#browser()
 			return(Simplify(Deriv_(st[[2]], x, env, use.D)))
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
@@ -314,12 +316,17 @@ Deriv_ <- function(st, x, env, use.D) {
 		}
 		rule <- drule[[stch]]
 		if (is.null(rule)) {
+#browser()
 			# no derivative rule for this function
 			# try to get the body and differentiate it
 			ff <- get(stch, mode="function", envir=env)
 			bf <- body(ff)
 			if (is.null(bf)) {
 				stop(sprintf("Could not retrieve body of '%s()'", stch))
+			}
+			if (is.call(bf) && (bf[[1]] == as.symbol(".External") || bf[[1]] == as.symbol(".Internal"))) {
+#cat("aha\n")
+				stop(sprintf("Function '%s()' is not in derivative table", stch))
 			}
 			mc <- match.call(ff, st)
 			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])))
@@ -374,6 +381,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		}
 		return(Simplify(li2sum(rule)))
 	} else if (is.function(st)) {
+#browser()
 		# differentiate its body if can get it
 		args <- as.list(st)[-1]
 		names(args)=names(formals(ff))
