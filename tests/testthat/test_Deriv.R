@@ -152,6 +152,12 @@ test_that("expression cache test", {
    expect_equal(g2n(x, m, s), g2c(x, m, s))
 })
 
+# test error reporting
+test_that("error reporting", {
+   expect_error(Deriv(rnorm), "is not in derivative table", fixed=TRUE)
+   expect_error(Deriv(~rnorm(x), "x"), "is not in derivative table", fixed=TRUE)
+   expect_error(Deriv(~x+rnorm(x), "x"), "is not in derivative table", fixed=TRUE)
+})
 
 # doc examples
 fsq <- function(x) x^2
