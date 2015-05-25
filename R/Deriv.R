@@ -412,7 +412,7 @@ drule[["*"]] <- qlist(e1=e2, e2=e1)
 drule[["^"]] <- qlist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
 drule[["/"]] <- qlist(e1=1/e2, e2=-e1/e2^2)
 drule[["sqrt"]] <- qlist(x=0.5/sqrt(x))
-drule[["log"]] <- qlist(x=1/(x*log(base)), base=-log(base, x)/(base*log(base)))
+drule[["log"]] <- qlist(x=1/(x*log(base)), base=-log(x, base)/(base*log(base)))
 drule[["logb"]] <- drule[["log"]]
 drule[["log2"]] <- qlist(x=1/(x*log(2)))
 drule[["log10"]] <- qlist(x=1/(x*log(10)))
@@ -444,7 +444,7 @@ drule[["abs"]] <- qlist(x=sign(x))
 drule[["sign"]] <- qlist(x=0)
 # special functions
 drule[["besselI"]] <- qlist(x=(if (nu == 0) besselI(x, 1, expon.scaled) else 0.5*(besselI(x, nu-1, expon.scaled) + besselI(x, nu+1, expon.scaled)))-if (expon.scaled) besselI(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
-drule[["besselK"]] <- qlist(x=(if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled)))+if (expon.scaled) besselK(x, nu, TRUE) else 0)
+drule[["besselK"]] <- qlist(x=(if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled)))+if (expon.scaled) besselK(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
 drule[["besselJ"]] <- qlist(x=if (nu == 0) -besselJ(x, 1) else 0.5*(besselJ(x, nu-1) - besselJ(x, nu+1)), nu=NULL)
 drule[["besselY"]] <- qlist(x=if (nu == 0) -besselY(x, 1) else 0.5*(besselY(x, nu-1) - besselY(x, nu+1)), nu=NULL)
 drule[["gamma"]] <- qlist(x=gamma(x)*digamma(x))
@@ -455,8 +455,9 @@ drule[["psigamma"]] <- qlist(x=psigamma(x, deriv+1L), deriv=NULL)
 drule[["beta"]] <- qlist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
 drule[["lbeta"]] <- qlist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
-drule[["dbinom"]] <- qlist(x=NULL, size=NULL, log=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1))
+drule[["dbinom"]] <- qlist(x=NULL, size=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1), log=NULL)
 drule[["dnorm"]] <- qlist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	mean=(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
+drule[["pnorm"]] <- qlist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=NULL, sd=NULL, lower.tail=NULL, log.p=NULL)
