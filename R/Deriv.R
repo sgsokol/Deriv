@@ -27,7 +27,7 @@
 #'  final expression must be optimized with cached subexpressions.
 #'  If enabled, repeated calculations are made only once and their
 #'  results stored in cache variables which are then reused.
-#' @param ... (in \code{qlist()}) is a suite of named unevaluated expressions.
+#' @param ... (in \code{alist()}) is a suite of named unevaluated expressions.
 #'  It is used to add derivative rules to \code{drule} environment.
 #' 
 #' @return \itemize{
@@ -71,7 +71,7 @@
 #'  }
 #'  \item It's easy to add custom entries to the derivatives table, e.g.
 #'   
-#'   \code{drule[["cos"]] <- qlist(x=-sin(x))}
+#'   \code{drule[["cos"]] <- alist(x=-sin(x))}
 #'   
 #'   The chain rule will be automatically applied if needed.
 #'  \item The output is an executable function, which makes it suitable
@@ -85,7 +85,7 @@
 #' As their names indicate, they contain tables of derivative and
 #' simplification rules.
 #' To see the list of defined rules do \code{ls(drule)}.
-#' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- qlist(x=pi*cospi(x))}.
+#' To add your own derivative rule for a function called say \code{sinpi(x)} calculating sin(pi*x), do \code{drule[["sinpi"]] <- alist(x=pi*cospi(x))}.
 #' Here, "x" stands for the first and unique argument in \code{sinpi()} definition. For a function that might have more than one argument,
 #' e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with a named rule
 #' per argument. See \code{drule$log} for an example to follow.
@@ -152,7 +152,7 @@
 #' \dontrun{
 #'   myfun <- function(x, y=TRUE) NULL # do something usefull
 #'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
-#'   drule[["myfun"]] <- qlist(x=dmyfun(x, y), y=NULL) # y is just a logical
+#'   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
 #'   Deriv(myfun(z^2, FALSE), "z")
 #'   # 2 * (z * dmyfun(z^2, FALSE))
 #' }
@@ -197,7 +197,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	} else if (is.function(f)) {
 #browser()
 		b <- body(f)
-		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
+		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External") || b[[1]] == as.symbol(".Call"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
 				acall <- as.call(c(as.symbol(fch), arg))
@@ -324,7 +324,7 @@ Deriv_ <- function(st, x, env, use.D) {
 			if (is.null(bf)) {
 				stop(sprintf("Could not retrieve body of '%s()'", stch))
 			}
-			if (is.call(bf) && (bf[[1]] == as.symbol(".External") || bf[[1]] == as.symbol(".Internal"))) {
+			if (is.call(bf) && (bf[[1]] == as.symbol(".External") || bf[[1]] == as.symbol(".Internal") || bf[[1]] == as.symbol(".Call"))) {
 #cat("aha\n")
 				stop(sprintf("Function '%s()' is not in derivative table", stch))
 			}
@@ -395,12 +395,7 @@ Deriv_ <- function(st, x, env, use.D) {
 	}
 }
 
-#' @rdname Deriv
-qlist <- function(...) {
-	# substitute arguments and return the list
-	mc <- match.call()
-	as.list(mc)[-1]
-}
+qlist <- alist
 drule <- new.env()
 dsym <- new.env()
 
@@ -408,56 +403,56 @@ dsym <- new.env()
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
 
 
-drule[["*"]] <- qlist(e1=e2, e2=e1)
-drule[["^"]] <- qlist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
-drule[["/"]] <- qlist(e1=1/e2, e2=-e1/e2^2)
-drule[["sqrt"]] <- qlist(x=0.5/sqrt(x))
-drule[["log"]] <- qlist(x=1/(x*log(base)), base=-log(x, base)/(base*log(base)))
+drule[["*"]] <- alist(e1=e2, e2=e1)
+drule[["^"]] <- alist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
+drule[["/"]] <- alist(e1=1/e2, e2=-e1/e2^2)
+drule[["sqrt"]] <- alist(x=0.5/sqrt(x))
+drule[["log"]] <- alist(x=1/(x*log(base)), base=-log(x, base)/(base*log(base)))
 drule[["logb"]] <- drule[["log"]]
-drule[["log2"]] <- qlist(x=1/(x*log(2)))
-drule[["log10"]] <- qlist(x=1/(x*log(10)))
-drule[["log1p"]] <- qlist(x=1/(x+1))
-drule[["exp"]] <- qlist(x=exp(x))
-drule[["expm1"]] <- qlist(x=exp(x))
+drule[["log2"]] <- alist(x=1/(x*log(2)))
+drule[["log10"]] <- alist(x=1/(x*log(10)))
+drule[["log1p"]] <- alist(x=1/(x+1))
+drule[["exp"]] <- alist(x=exp(x))
+drule[["expm1"]] <- alist(x=exp(x))
 # trigonometric
-drule[["sin"]] <- qlist(x=cos(x))
-drule[["cos"]] <- qlist(x=-sin(x))
-drule[["tan"]] <- qlist(x=1/cos(x)^2)
-drule[["asin"]] <- qlist(x=1/sqrt(1-x^2))
-drule[["acos"]] <- qlist(x=-1/sqrt(1-x^2))
-drule[["atan"]] <- qlist(x=1/(1+x^2))
-drule[["atan2"]] <- qlist(y=x/(x^2+y^2), x=-y/(x^2+y^2))
+drule[["sin"]] <- alist(x=cos(x))
+drule[["cos"]] <- alist(x=-sin(x))
+drule[["tan"]] <- alist(x=1/cos(x)^2)
+drule[["asin"]] <- alist(x=1/sqrt(1-x^2))
+drule[["acos"]] <- alist(x=-1/sqrt(1-x^2))
+drule[["atan"]] <- alist(x=1/(1+x^2))
+drule[["atan2"]] <- alist(y=x/(x^2+y^2), x=-y/(x^2+y^2))
 if (getRversion() >= "3.1.0") {
-   drule[["sinpi"]] <- qlist(x=pi*cospi(x))
-   drule[["cospi"]] <- qlist(x=-pi*sinpi(x))
-   drule[["tanpi"]] <- qlist(x=pi/cospi(x)^2)
+	drule[["sinpi"]] <- alist(x=pi*cospi(x))
+	drule[["cospi"]] <- alist(x=-pi*sinpi(x))
+	drule[["tanpi"]] <- alist(x=pi/cospi(x)^2)
 }
 # hyperbolic
-drule[["sinh"]] <- qlist(x=cosh(x))
-drule[["cosh"]] <- qlist(x=sinh(x))
-drule[["tanh"]] <- qlist(x=(1-tanh(x)^2))
-drule[["asinh"]] <- qlist(x=1/sqrt(x^2+1))
-drule[["acosh"]] <- qlist(x=1/sqrt(x^2-1))
-drule[["atanh"]] <- qlist(x=1/(1-x^2))
+drule[["sinh"]] <- alist(x=cosh(x))
+drule[["cosh"]] <- alist(x=sinh(x))
+drule[["tanh"]] <- alist(x=(1-tanh(x)^2))
+drule[["asinh"]] <- alist(x=1/sqrt(x^2+1))
+drule[["acosh"]] <- alist(x=1/sqrt(x^2-1))
+drule[["atanh"]] <- alist(x=1/(1-x^2))
 # sign depending functions
-drule[["abs"]] <- qlist(x=sign(x))
-drule[["sign"]] <- qlist(x=0)
+drule[["abs"]] <- alist(x=sign(x))
+drule[["sign"]] <- alist(x=0)
 # special functions
-drule[["besselI"]] <- qlist(x=(if (nu == 0) besselI(x, 1, expon.scaled) else 0.5*(besselI(x, nu-1, expon.scaled) + besselI(x, nu+1, expon.scaled)))-if (expon.scaled) besselI(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
-drule[["besselK"]] <- qlist(x=(if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled)))+if (expon.scaled) besselK(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
-drule[["besselJ"]] <- qlist(x=if (nu == 0) -besselJ(x, 1) else 0.5*(besselJ(x, nu-1) - besselJ(x, nu+1)), nu=NULL)
-drule[["besselY"]] <- qlist(x=if (nu == 0) -besselY(x, 1) else 0.5*(besselY(x, nu-1) - besselY(x, nu+1)), nu=NULL)
-drule[["gamma"]] <- qlist(x=gamma(x)*digamma(x))
-drule[["lgamma"]] <- qlist(x=digamma(x))
-drule[["digamma"]] <- qlist(x=trigamma(x))
-drule[["trigamma"]] <- qlist(x=psigamma(x, 2L))
-drule[["psigamma"]] <- qlist(x=psigamma(x, deriv+1L), deriv=NULL)
-drule[["beta"]] <- qlist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
-drule[["lbeta"]] <- qlist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
+drule[["besselI"]] <- alist(x=(if (nu == 0) besselI(x, 1, expon.scaled) else 0.5*(besselI(x, nu-1, expon.scaled) + besselI(x, nu+1, expon.scaled)))-if (expon.scaled) besselI(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
+drule[["besselK"]] <- alist(x=(if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled)))+if (expon.scaled) besselK(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
+drule[["besselJ"]] <- alist(x=if (nu == 0) -besselJ(x, 1) else 0.5*(besselJ(x, nu-1) - besselJ(x, nu+1)), nu=NULL)
+drule[["besselY"]] <- alist(x=if (nu == 0) -besselY(x, 1) else 0.5*(besselY(x, nu-1) - besselY(x, nu+1)), nu=NULL)
+drule[["gamma"]] <- alist(x=gamma(x)*digamma(x))
+drule[["lgamma"]] <- alist(x=digamma(x))
+drule[["digamma"]] <- alist(x=trigamma(x))
+drule[["trigamma"]] <- alist(x=psigamma(x, 2L))
+drule[["psigamma"]] <- alist(x=psigamma(x, deriv+1L), deriv=NULL)
+drule[["beta"]] <- alist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
+drule[["lbeta"]] <- alist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
-drule[["dbinom"]] <- qlist(x=NULL, size=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1), log=NULL)
-drule[["dnorm"]] <- qlist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
+drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1), log=NULL)
+drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	mean=(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
-drule[["pnorm"]] <- qlist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=NULL, sd=NULL, lower.tail=NULL, log.p=NULL)
+drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
