@@ -214,6 +214,11 @@ test_that("central differences", {
    }
 })
 
+tmp <- Deriv(Deriv(quote(dnorm(x ** 2 - x)), "x"), "x")
+test_that("dsym cleaning after nested call", {
+   expect_identical(Deriv(quote(.e1*x), "x"), quote(.e1)) # was issue #2
+})
+
 # doc examples
 fsq <- function(x) x^2
 fsc <- function(x, y) sin(x) * cos(y)

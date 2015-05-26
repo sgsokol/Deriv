@@ -3,7 +3,7 @@
 #' @aliases Simplify simplifications
 #' @concept symbolic simplification
 # \usage{
-# Simplify(expr, env=parent.frame())
+# Simplify(expr, env=parent.frame(), scache=new.env())
 # }
 #' 
 #' 
@@ -20,19 +20,19 @@
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
-Simplify <- function(expr, env=parent.frame()) {
+Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 	if (is.expression(expr)) {
-		as.expression(Simplify_(expr[[1]]))
+		as.expression(Simplify_(expr[[1]], scache))
 	} else if (is.function(expr)) {
 		as.function(c(as.list(formals(expr)),
-			Simplify_(body(expr))),
+			Simplify_(body(expr), scache)),
 			envir=env)
 	} else if (is.call(expr) && expr[[1]] == as.symbol("~")) {
-		Simplify_(expr[[length(expr)]])
+		Simplify_(expr[[length(expr)]], scache)
 	} else if (is.character(expr)) {
-		format1(Simplify_(parse(text=expr)[[1]]))
+		format1(Simplify_(parse(text=expr)[[1]], scache))
 	} else {
-		Simplify_(expr)
+		Simplify_(expr, scache)
 	}
 }
 
@@ -54,7 +54,7 @@ format1 <- function(expr) {
 	return(res)
 }
 
-Simplify_ <- function(expr) {
+Simplify_ <- function(expr, scache) {
 	if (is.call(expr)) {
 		che <- format1(expr)
 		res <- scache[[che]]
@@ -69,7 +69,7 @@ Simplify_ <- function(expr) {
 		}
 		scache[[che]] <- NA # token holder
 #cat("simp expr=", format1(expr), "\n", sep="")
-		args <- lapply(as.list(expr)[-1], Simplify_)
+		args <- lapply(as.list(expr)[-1], Simplify_, scache)
 		expr[-1]=args
 		if (all(sapply(args, is.conuloch))) {
 			# if all arguments are like numeric, evaluate them
@@ -80,7 +80,7 @@ Simplify_ <- function(expr) {
 			# is there a rule in the table?
 			sym.name <- as.character(expr[[1]])
 			Simplify.rule <- simplifications[[sym.name]]
-			res <- if (!is.null(Simplify.rule)) Simplify.rule(expr) else expr
+			res <- if (!is.null(Simplify.rule)) Simplify.rule(expr, scache=scache) else expr
 			scache[[che]] <- res
 			return(res)
 		}
@@ -91,11 +91,11 @@ Simplify_ <- function(expr) {
 
 
 # in what follows no need to Simplify_ args neither to check if
-# all arguments are unumeric. It is done in upper Simplify_()
-`Simplify.(` <- function(expr) {
+# all arguments are numeric. It is done in the upper Simplify_()
+`Simplify.(` <- function(expr, scache=NULL) {
 	expr[[2]]
 }
-`Simplify.+` <- function(expr, add=TRUE) {
+`Simplify.+` <- function(expr, add=TRUE, scache=NULL) {
 	if (length(expr) == 2) {
 		if (add)
 			return(expr[[2]])
@@ -119,7 +119,7 @@ Simplify_ <- function(expr) {
 		add <- FALSE
 		expr <- call("-", a, b)
 	} else if (identical(a, b)) {
-		return(if (add) Simplify_(call("*", 2, a)) else 0)
+		return(if (add) Simplify_(call("*", 2, a), scache) else 0)
 	} else if (!is.call(a) && !is.call(b)) {
 		return(expr) # nothing to simplify
 	}
@@ -179,7 +179,7 @@ Simplify_ <- function(expr) {
 	}
 #browser()
 	if (is.na(fnd))
-		return(lc2expr(lc)) # nothing to factorize, just order terms
+		return(lc2expr(lc, scache)) # nothing to factorize, just order terms
 	ond <- if (fnd == "num") "den" else "num"
 	# create nd with the first factor
 	fa_nd <- list(num=list(b=list(), p=list()),
@@ -189,7 +189,7 @@ Simplify_ <- function(expr) {
 	fa_nd[[fnd]]$p <- list(p_fa)
 	# decrease p in the lc terms
 	for (i in seq_along(i_lc)) {
-		lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]], p_fa))
+		lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[fnd]]$p[[i_nd[i]]], p_fa), scache)
 	}
 	
 	for (cnd in c(fnd, ond)) {
@@ -212,14 +212,14 @@ Simplify_ <- function(expr) {
 p_fa)
 			# decrease p in the lc terms
 			for (i in seq_along(i_lc)) {
-				lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]], p_fa))
+				lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]], p_fa), scache)
 			}
 		}
 	}
 #browser()
 	# form final symbolic expression
 	# replace all i_lc by one product of fa_nd and lincomb of the reduced nds
-	rest <- Simplify_(lc2expr(lc[i_lc]))
+	rest <- Simplify_(lc2expr(lc[i_lc], scache), scache)
 	if (is.numeric(rest) && rest < 0) {
 		rest <- -rest
 		fa_nd$sminus <- !fa_nd$sminus
@@ -230,15 +230,15 @@ p_fa)
 	fa_nd$num$b <- append(fa_nd$num$b, rest)
 	fa_nd$num$p <- append(fa_nd$num$p, 1)
 	lc <- c(list(fa_nd), lc[-i_lc])
-	return(lc2expr(lc))
+	return(lc2expr(lc, scache))
 }
 
-`Simplify.-` <- function(expr)
+`Simplify.-` <- function(expr, scache=NULL)
 {
-	`Simplify.+`(expr, add=FALSE)
+	`Simplify.+`(expr, add=FALSE, scache=scache)
 }
 
-`Simplify.*` <- function(expr, div=FALSE)
+`Simplify.*` <- function(expr, div=FALSE, scache=NULL)
 {
 #print(expr)
 #browser()
@@ -321,7 +321,7 @@ p_fa)
 				isim <- which(nd_eq[,inum])
 				if (length(isim)) {
 					# add powers for this base
-					nd[[na]]$p[[isim[1]]] <- Simplify_(li2sum(nd[[na]]$p[isim]))
+					nd[[na]]$p[[isim[1]]] <- Simplify_(li2sum(nd[[na]]$p[isim]), scache)
 					# set grouped powers to 0
 					nd[[na]]$p[isim[-1]] <- 0
 				}
@@ -342,13 +342,13 @@ p_fa)
 			if (length(iden)) {
 				# simplify power for this pair
 				ipair <- cbind(ipair, c(inum, iden))
-				res <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]))
+				res <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]), scache)
 				if (res > 0) {
 					nd$num$p[[inum]] <- res
 					nd$den$p[[iden]] <- 0
 				} else {
 					nd$num$p[[inum]] <- 0
-					nd$den$p[[iden]] <- Simplify_(substitute(-res))
+					nd$den$p[[iden]] <- Simplify_(substitute(-res), scache)
 				}
 			}
 		}
@@ -363,15 +363,15 @@ p_fa)
 		}
 		nd[["fa"]] <- fa
 		nd[["sminus"]] <- sminus
-		expr <- nd2expr(nd)
+		expr <- nd2expr(nd, scache)
 		expr
 	}
 }
-`Simplify./` <- function(expr)
+`Simplify./` <- function(expr, scache=NULL)
 {
-	`Simplify.*`(expr, div=TRUE)
+	`Simplify.*`(expr, div=TRUE, scache=scache)
 }
-`Simplify.^` <- function(expr)
+`Simplify.^` <- function(expr, scache=NULL)
 {
 	a <- expr[[2]]
 	b <- expr[[3]]
@@ -389,11 +389,11 @@ p_fa)
 	} else if (is.call(a)) {
 		if (a[[1]] == as.symbol("^")) {
 			# product of exponents
-			b <- Simplify_(call("*", a[[3]], b))
+			b <- Simplify_(call("*", a[[3]], b), scache)
 			a <- a[[2]]
 		} else if (a[[1]] == as.symbol("sqrt")) {
 			# divide by 2
-			b <- Simplify_(call("/", b, 2))
+			b <- Simplify_(call("/", b, 2), scache)
 			a <- a[[2]]
 		} else if (a[[1]] == as.symbol("abs") && is.numeric(b) && b%%2 == 0) {
 			# remove abs() for even power
@@ -406,32 +406,32 @@ p_fa)
 		expr
 	}
 }
-Simplify.log <- function(expr) {
+Simplify.log <- function(expr, scache=NULL) {
 	if (is.call(expr[[2]])) {
 		# the argument of log is a function
 		subf <- as.character(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			expr[[2]] <- expr[[2]][[2]]
-			expr <- Simplify_(call("*", p, expr))
+			expr <- Simplify_(call("*", p, expr), scache)
 		} else if (subf == "exp") {
 			if (length(expr) == 2)
 				expr <- expr[[2]][[2]]
 			else
-				expr <- Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])))
+				expr <- Simplify_(call("/", expr[[2]][[2]], call("log", expr[[3]])), scache)
 		} else if (subf == "sqrt") {
 			expr[[2]] <- expr[[2]][[2]]
-			expr <- Simplify_(call("*", 0.5, expr))
+			expr <- Simplify_(call("*", 0.5, expr), scache)
 		} else if (subf == "*") {
 			a <- expr
 			a[[2]] <- expr[[2]][[2]]
 			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
-			expr <- Simplify_(call("+", a, expr))
+			expr <- Simplify_(call("+", a, expr), scache)
 		} else if (subf == "/") {
 			a <- expr
 			a[[2]] <- expr[[2]][[2]]
 			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
-			expr <- Simplify_(call("-", a, expr))
+			expr <- Simplify_(call("-", a, expr), scache)
 		} else {
 			expr
 		}
@@ -442,20 +442,20 @@ Simplify.log <- function(expr) {
 		expr
 	}
 }
-Simplify.sqrt <- function(expr) {
+Simplify.sqrt <- function(expr, scache=NULL) {
 	if (is.call(expr[[2]])) {
 		# the argument of sqrt is a function
 		subf <- as.character(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
-			Simplify_(call("^",  call("abs", expr[[2]][[2]]), call("/", p, 2)))
+			Simplify_(call("^",  call("abs", expr[[2]][[2]]), call("/", p, 2)), scache)
 		} else if (subf == "exp") {
-			expr[[2]][[2]] <- Simplify_(call("/", expr[[2]][[2]], 2))
+			expr[[2]][[2]] <- Simplify_(call("/", expr[[2]][[2]], 2), scache)
 			expr[[2]]
 		} else if (subf == "sqrt") {
-			Simplify_(call("^", expr[[2]][[2]], 0.25))
+			Simplify_(call("^", expr[[2]][[2]], 0.25), scache)
 		} else if (subf == "*" && identical(expr[[2]][[2]], expr[[2]][[3]])) {
-			Simplify_(call("abs", expr[[2]][[2]]))
+			Simplify_(call("abs", expr[[2]][[2]]), scache)
 		} else {
 			expr
 		}
@@ -463,7 +463,7 @@ Simplify.sqrt <- function(expr) {
 		expr
 	}
 }
-Simplify.abs <- function(expr) {
+Simplify.abs <- function(expr, scache=NULL) {
 	if (is.uminus(expr[[2]])) {
 		expr[[2]] <- expr[[2]][[2]]
 	} else if (is.call(expr[[2]])) {
@@ -478,7 +478,7 @@ Simplify.abs <- function(expr) {
 	}
 	expr
 }
-Simplify.sign <- function(expr) {
+Simplify.sign <- function(expr, scache=NULL) {
 	if (is.uminus(expr[[2]])) {
 		expr[[2]] <- expr[[2]][[2]]
 		expr <- call("-", expr)
@@ -494,7 +494,7 @@ Simplify.sign <- function(expr) {
 	}
 	expr
 }
-Simplify.if <- function(expr) {
+Simplify.if <- function(expr, scache=NULL) {
 	cond <- expr[[2]]
 	if ((is.logical(cond) || is.numeric(cond)) && isTRUE(!!cond)) {
 		expr <- expr[[3]]
@@ -507,7 +507,7 @@ Simplify.if <- function(expr) {
 	}
 	expr
 }
-Simplify.bessel <- function(expr) {
+Simplify.bessel <- function(expr, scache=NULL) {
 	if (length(expr) < 4)
 		return(expr)
 	cond <- expr[[4]]
@@ -687,7 +687,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	return(as.call(e))
 }
 
-nd2expr <- function(nd, sminus=NULL) {
+nd2expr <- function(nd, scache, sminus=NULL) {
 	# form symbolic products
 	# if sminus is not null, use it instead of the nd's one
 	if (length(nd) == 0)
@@ -702,7 +702,7 @@ nd2expr <- function(nd, sminus=NULL) {
 			p <- nd[[na]]$p[[i]]
 			if (p == 0)
 				next
-			term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p))
+			term <- if (p == 1) nd[[na]]$b[[i]] else Simplify_(call("^", nd[[na]]$b[[i]], p), scache)
 			if (term == 0)
 				return(if (na == "num") 0 else if (sminus) -Inf else Inf)
 			if (is.null(eprod[[na]]))
@@ -743,11 +743,11 @@ nd2expr <- function(nd, sminus=NULL) {
 	return(expr)
 }
 
-lc2expr <- function(lc) {
+lc2expr <- function(lc, scache) {
 	# form symbolic sum and diff form a list of nds
 	# separate in positive and negative
 	smin <- sapply(lc, "[[", "sminus")
-	epos <- lapply(lc[which(!smin)], nd2expr)
+	epos <- lapply(lc[which(!smin)], nd2expr, scache)
 	if (length(epos) > 1) {
 #cat("epos orig=", sapply(epos, format1), sep="\n")
 #cat("epos order=", order(sapply(epos, format1)), sep="\n")
@@ -755,14 +755,14 @@ lc2expr <- function(lc) {
 		epos <- epos[order(sapply(epos, format1), decreasing = FALSE)]
 #cat("epos=", sapply(epos, format1), sep="\n")
 	}
-	eneg <- lapply(lc[which(smin)], nd2expr, sminus=FALSE)
+	eneg <- lapply(lc[which(smin)], nd2expr, scache, sminus=FALSE)
 	if (length(eneg) > 1) {
 		eneg <- eneg[order(sapply(eneg, format1))]
 	}
 	if (length(epos) == 0)
-		return(if (length(eneg) == 0) 0 else Simplify_(call("-", li2sum(eneg))))
+		return(if (length(eneg) == 0) 0 else Simplify_(call("-", li2sum(eneg)), scache))
 	else
-		return(if (length(eneg) == 0) li2sum(epos) else Simplify_(call("-", li2sum(epos), li2sum(eneg))))
+		return(if (length(eneg) == 0) li2sum(epos) else Simplify_(call("-", li2sum(epos), li2sum(eneg)), scache))
 }
 
 li2sum <- function(li) {
@@ -784,7 +784,6 @@ li2sum <- function(li) {
 }
 
 simplifications <- new.env()
-scache <- new.env()
 
 assign("+", `Simplify.+`, envir=simplifications)
 assign("-", `Simplify.-`, envir=simplifications)

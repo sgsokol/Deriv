@@ -163,8 +163,10 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	if (inherits(tf, "try-error")) {
 		f <- substitute(f)
 	}
-	# clean dsym env
-	rm(list=ls(dsym), envir=dsym)
+	# create dsym and scache local envs (to keep clean nested calls)
+	dsym <- new.env()
+	scache <- new.env()
+	
 	if (is.null(env))
 		env <- .GlobalEnv
 	if (is.null(x)) {
@@ -179,7 +181,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		if (is.null(rule) && !fch %in% dlin) {
 			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
 		}
-		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D)
+		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D, dsym, scache)
 		if (cache.exp)
 			res <- Cache(res)
 		return(as.function(c(af, res), envir=env))
@@ -190,7 +192,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	}
 	if (is.character(f)) {
 		# f is to parse
-		res <- Deriv_(parse(text=f)[[1]], x, env, use.D)
+		res <- Deriv_(parse(text=f)[[1]], x, env, use.D, dsym, scache)
 		if (cache.exp)
 			res <- Cache(res)
 		format1(res)
@@ -201,7 +203,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
 				acall <- as.call(c(as.symbol(fch), arg))
-				res <- Deriv_(acall, x, env, use.D)
+				res <- Deriv_(acall, x, env, use.D, dsym, scache)
 				if (cache.exp)
 					res <- Cache(res)
 				as.function(c(formals(args(f)), res), envir=env)
@@ -209,26 +211,26 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 				stop(sprintf("Internal or external function '%s()' is not in derivative table.", fch))
 			}
 		} else {
-			res <- Deriv_(b, x, env, use.D)
+			res <- Deriv_(b, x, env, use.D, dsym, scache)
 			if (cache.exp)
 				res <- Cache(res)
 			as.function(c(formals(f), res), envir=env)
 		}
 	} else if (is.expression(f)) {
-		res <- Deriv_(f[[1]], x, env, use.D)
+		res <- Deriv_(f[[1]], x, env, use.D, dsym, scache)
 		if (cache.exp)
 			res <- Cache(res)
 		as.expression(res)
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
 			# rhs of the formula
-			res <- Deriv_(f[[length(f)]], x, env, use.D)
+			res <- Deriv_(f[[length(f)]], x, env, use.D, dsym, scache)
 			if (cache.exp)
 				res <- Cache(res)
 			res
 		} else {
 			# plain call derivation
-			res <- Deriv_(f, x, env, use.D)
+			res <- Deriv_(f, x, env, use.D, dsym, scache)
 			if (cache.exp)
 				res <- Cache(res)
 			res
@@ -237,7 +239,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		f <- substitute(f)
 		if (length(x) == 0)
 			x <- all.vars(f)
-		res <- Deriv_(f, x, env, use.D)
+		res <- Deriv_(f, x, env, use.D, dsym, scache)
 		if (cache.exp)
 			res <- Cache(res)
 		res
@@ -246,11 +248,11 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 }
 
 # workhorse function doing the main work of differentiation
-Deriv_ <- function(st, x, env, use.D) {
+Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	if (length(x) > 1) {
 		# many variables => recursive call on single name
-		res <- lapply(x, function(xi) {rm(list=ls(dsym), envir=dsym); Deriv_(st, xi, env, use.D)})
+		res <- lapply(x, function(xi) {rm(list=ls(dsym), envir=dsym); Deriv_(st, xi, env, use.D, dsym, scache)})
 		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	}
@@ -273,8 +275,8 @@ Deriv_ <- function(st, x, env, use.D) {
 		if (stch %in% dlin) {
 			# linear case
 			# differentiate all arguments then pass them to the function
-			dargs <- lapply(args, Deriv_, x, env, use.D)
-			return(Simplify_(as.call(c(st[[1]], dargs))))
+			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
+			return(Simplify_(as.call(c(st[[1]], dargs)), scache))
 		}
 		nb_args=length(st)-1
 		# special cases: out of rule table or args(stch) -> NULL
@@ -287,7 +289,7 @@ Deriv_ <- function(st, x, env, use.D) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
 					res <- append(res, a)
-					de_a <- Deriv_(a[[3]], x, env, use.D)
+					de_a <- Deriv_(a[[3]], x, env, use.D, dsym, scache)
 					ach <- as.character(a[[2]])
 					if (de_a == 0) {
 						next
@@ -299,20 +301,20 @@ Deriv_ <- function(st, x, env, use.D) {
 					dsym[[ach]] <- d_a
 					res <- append(res, call("<-", d_a, de_a))
 				} else {
-					res <- append(res, Deriv_(a, x, env, use.D))
+					res <- append(res, Deriv_(a, x, env, use.D, dsym, scache))
 				}
 			}
 			return(as.call(res))
 		} else if (is.uminus(st)) {
-			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D))))
+			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache))
 		} else if (stch == "(") {
 #browser()
-			return(Simplify(Deriv_(st[[2]], x, env, use.D)))
+			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache))
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D))) else
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D),
-					Deriv_(st[[4]], x, env, use.D))))
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache) else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
+					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache))
 		}
 		rule <- drule[[stch]]
 		if (is.null(rule)) {
@@ -329,12 +331,12 @@ Deriv_ <- function(st, x, env, use.D) {
 				stop(sprintf("Function '%s()' is not in derivative table", stch))
 			}
 			mc <- match.call(ff, st)
-			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])))
-			return(Deriv_(st, x, env, use.D))
+			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])), scache)
+			return(Deriv_(st, x, env, use.D, dsym, scache))
 		}
 		# there is a rule!
 		if (use.D) {
-			return(Simplify(D(st, x)))
+			return(Simplify(D(st, x), scache))
 		}
 #if (stch == "myfun")
 #	browser()
@@ -362,7 +364,7 @@ Deriv_ <- function(st, x, env, use.D) {
 		}
 		# rules and dargs are ordered by mc names
 		rule <- rule[names(mc)]
-		dargs <- lapply(mc, Deriv_, x, env, use.D)
+		dargs <- lapply(mc, Deriv_, x, env, use.D, dsym, scache)
 		ize <- sapply(dargs, `==`, 0)
 		dargs <- dargs[!ize]
 		rule <- rule[!ize]
@@ -374,12 +376,12 @@ Deriv_ <- function(st, x, env, use.D) {
 		ione <- sapply(dargs, `==`, 1)
 		imone <- sapply(dargs, `==`, -1)
 		for (i in seq_along(rule)[!(ione|imone)]) {
-			rule[[i]] <- call("*", dargs[[i]], rule[[i]])
+			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache)
 		}
 		for (i in seq_along(rule)[imone]) {
-			rule[[i]] <- call("-", rule[[i]])
+			rule[[i]] <- Simplify(call("-", rule[[i]]), scache)
 		}
-		return(Simplify(li2sum(rule)))
+		return(Simplify(li2sum(rule), scache))
 	} else if (is.function(st)) {
 #browser()
 		# differentiate its body if can get it
@@ -389,20 +391,19 @@ Deriv_ <- function(st, x, env, use.D) {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
 		st <- do.call("substitute", list(body(ff), args))
-		Deriv_(st, x, env, use.D)
+		Deriv_(st, x, env, use.D, dsym, scache)
 	} else {
 		stop("Invalid type of 'st' argument. It must be constant, symbol or a call.")
 	}
 }
 
-qlist <- alist
+qlist <- alist # qlist() is deprecated, kept for legacy only
 drule <- new.env()
-dsym <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
 
-
+# rule table
 drule[["*"]] <- alist(e1=e2, e2=e1)
 drule[["^"]] <- alist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
 drule[["/"]] <- alist(e1=1/e2, e2=-e1/e2^2)
