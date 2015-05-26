@@ -1,10 +1,19 @@
+Version 3.5
+===========
+
+* 2015-05-26
+ - fixed abusive capturing of error messages in Simplify() (issue #1, reported by notEvil@github)
+ - fixed interference in dsym and scache environements in nested calls to Deriv() (issue #2, reported by notEvil@github)
+ - the function qlist() is deprecated for rule creation. Use alist() instead (seen in issue #1)
+ - added pnorm() for derivative table (based on suggestion in issue # 1)
+ - minor twiks in the documentation
+
 Version 3.4
 ===========
 
 * 2015-05-05
  - fixed usage of sinpi() and alike in R older than 3.1.0 (reported by R-core team)
  - fixed dependence of term order on LC_COLLATE in test suite
-
 Version 3.3
 ===========
 

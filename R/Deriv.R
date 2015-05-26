@@ -1,6 +1,6 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
-#' @aliases Deriv drule qlist
+#' @aliases Deriv drule
 #' @concept symbollic differentiation
 #' 
 #' @param f An expression or function to be differentiated.
@@ -27,8 +27,6 @@
 #'  final expression must be optimized with cached subexpressions.
 #'  If enabled, repeated calculations are made only once and their
 #'  results stored in cache variables which are then reused.
-#' @param ... (in \code{alist()}) is a suite of named unevaluated expressions.
-#'  It is used to add derivative rules to \code{drule} environment.
 #' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function

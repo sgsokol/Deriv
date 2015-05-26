@@ -7,25 +7,24 @@ Symbolic Differentiation
 \description{
 R already contains two differentiation functions: D and deriv.
 
-R's existing functions have several limitations.
-Limitations include:
+R's existing functions have several limitations:
+
 \itemize{
- \item The derivatives table can't be modified at runtime, and is only available
+ \item the derivatives table can't be modified at runtime, and is only available
 in C.
- \item Function cannot substitute function calls.  eg:
+ \item function cannot substitute function calls.  eg:
       
       \code{f <- function(x, y) x + y; deriv(~f(x, x^2), "x")}
 }
 
-Here are the advantages this implementation:
+The advantages of this package include:
 
 \itemize{
  \item It is entirely written in R, so would be easier to maintain.
  \item Can differentiate function calls:
    \itemize{
       \item if the function is in the derivative table, then the chain rule
-      is applied.  For example, if you declared that the derivative of
-      sin is cos, then it would figure out how to call cos correctly.
+      is applied.
       \item if the function is not in the derivative table (or it is anonymous),
       then the function body is substituted in.
       \item these two methods can be mixed.  An entry in the derivative table
@@ -34,7 +33,7 @@ Here are the advantages this implementation:
    }
  \item It's easy to add custom entries to the derivatives table, e.g.
       
-      \code{drule[["cos"]] <- qlist(x=-sin(x))}
+      \code{drule[["cos"]] <- alist(x=-sin(x))}
  \item The output can be an executable function, which makes it suitable for use in
 optimization problems.
 }
@@ -44,12 +43,12 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 3.0\cr
-Date: \tab 2015-03-06\cr
+Version: \tab 3.5\cr
+Date: \tab 2015-05-26\cr
 License: \tab GPL (>= 3)\cr
 }
-The package contains two useful functions: Deriv() for differentiating
-expressions, Simplify() for simplifying symbolically.
+Two main functions are Deriv() for differentiating
+and Simplify() for simplifying symbolically.
 }
 
 \author{
