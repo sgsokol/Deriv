@@ -17,6 +17,7 @@
 #' }
 #' @param env An environment in wich a simplified function is created
 #'  if \code{expr} is a function. This argument is ignored in all other cases.
+#' @param scache An environment in which cached simplified expression are stored
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.

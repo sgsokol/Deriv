@@ -304,15 +304,15 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			}
 			return(as.call(res))
 		} else if (is.uminus(st)) {
-			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache))
+			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache=scache))
 		} else if (stch == "(") {
 #browser()
-			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache))
+			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache=scache))
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache) else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
-					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache))
+					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
 		}
 		rule <- drule[[stch]]
 		if (is.null(rule)) {
@@ -334,7 +334,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		}
 		# there is a rule!
 		if (use.D) {
-			return(Simplify(D(st, x), scache))
+			return(Simplify(D(st, x), scache=scache))
 		}
 #if (stch == "myfun")
 #	browser()
@@ -374,12 +374,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		ione <- sapply(dargs, `==`, 1)
 		imone <- sapply(dargs, `==`, -1)
 		for (i in seq_along(rule)[!(ione|imone)]) {
-			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache)
+			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache=scache)
 		}
 		for (i in seq_along(rule)[imone]) {
-			rule[[i]] <- Simplify(call("-", rule[[i]]), scache)
+			rule[[i]] <- Simplify(call("-", rule[[i]]), scache=scache)
 		}
-		return(Simplify(li2sum(rule), scache))
+		return(Simplify(li2sum(rule), scache=scache))
 	} else if (is.function(st)) {
 #browser()
 		# differentiate its body if can get it
