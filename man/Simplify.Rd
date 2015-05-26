@@ -19,6 +19,8 @@ Simplify(expr, env = parent.frame(), scache = new.env())
 
 \item{env}{An environment in wich a simplified function is created
 if \code{expr} is a function. This argument is ignored in all other cases.}
+
+\item{scache}{An environment in which cached simplified expression are stored}
 }
 \value{
 A simplified expression. The result is of the same type as
