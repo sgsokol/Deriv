@@ -632,7 +632,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	stch <- if (is.call(st)) as.character(st[[1]]) else ""
 	if (stch == "<-" || stch == "=") {
 		return(call("<-", st[[2]], Cache(st[[3]], prefix=paste(".", st[[1]], sep=""))))
-	} else if (stch == "{") {
+	} else if (stch == "{" || stch == "c") {
 		return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache))))
 	}
 	alva <- all.vars(st)

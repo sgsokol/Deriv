@@ -249,8 +249,9 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	if (length(x) > 1) {
+#browser()
 		# many variables => recursive call on single name
-		res <- lapply(x, function(xi) {rm(list=ls(dsym), envir=dsym); Deriv_(st, xi, env, use.D, dsym, scache)})
+		res <- lapply(x, function(xi) {rm(list=ls(dsym, all.names=TRUE), envir=dsym); Deriv_(st, xi, env, use.D, dsym, scache)})
 		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	}
@@ -402,9 +403,11 @@ drule <- new.env()
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
 
 # rule table
+# arithmetics
 drule[["*"]] <- alist(e1=e2, e2=e1)
 drule[["^"]] <- alist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
 drule[["/"]] <- alist(e1=1/e2, e2=-e1/e2^2)
+# log, exp, sqrt
 drule[["sqrt"]] <- alist(x=0.5/sqrt(x))
 drule[["log"]] <- alist(x=1/(x*log(base)), base=-log(x, base)/(base*log(base)))
 drule[["logb"]] <- drule[["log"]]
