@@ -1,9 +1,14 @@
+Version 3.5.2
+===========
+
+* 2015-05-28
+ - fixed limit of 10000 chars for variable names in scache and dsym (issue #3 submitted by notEvil@github)
+
 Version 3.5.1
 ===========
 
 * 2015-05-27
  - fixed Cache() when applied to c() expression
-
 Version 3.5
 ===========
 

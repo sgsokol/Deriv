@@ -17,11 +17,13 @@
 #' }
 #' @param env An environment in wich a simplified function is created
 #'  if \code{expr} is a function. This argument is ignored in all other cases.
-#' @param scache An environment in which cached simplified expression are stored
+#' @param scache An environment where there is a list in which simplified expression are cached
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
 Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
+	if (is.null(scache$l))
+		scache$l <- list() # for stand alone use of Simplify
 	if (is.expression(expr)) {
 		as.expression(Simplify_(expr[[1]], scache))
 	} else if (is.function(expr)) {
@@ -58,31 +60,31 @@ format1 <- function(expr) {
 Simplify_ <- function(expr, scache) {
 	if (is.call(expr)) {
 		che <- format1(expr)
-		res <- scache[[che]]
+		res <- scache$l[[che]]
 		if (!is.null(res)) {
 			if (typeof(res) == "logical" && is.na(res)) {
 				# recursive infinite call
-				scache[[che]] <- expr
+				scache$l[[che]] <- expr
 				return(expr)
 			} else {
 				return(res)
 			}
 		}
-		scache[[che]] <- NA # token holder
+		scache$l[[che]] <- NA # token holder
 #cat("simp expr=", format1(expr), "\n", sep="")
 		args <- lapply(as.list(expr)[-1], Simplify_, scache)
 		expr[-1]=args
 		if (all(sapply(args, is.conuloch))) {
 			# if all arguments are like numeric, evaluate them
 			res <- eval(expr)
-			scache[[che]] <- res
+			scache$l[[che]] <- res
 			return(res)
 		} else {
 			# is there a rule in the table?
 			sym.name <- as.character(expr[[1]])
 			Simplify.rule <- simplifications[[sym.name]]
 			res <- if (!is.null(Simplify.rule)) Simplify.rule(expr, scache=scache) else expr
-			scache[[che]] <- res
+			scache$l[[che]] <- res
 			return(res)
 		}
 	} else {

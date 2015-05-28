@@ -163,7 +163,9 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 	}
 	# create dsym and scache local envs (to keep clean nested calls)
 	dsym <- new.env()
+	dsym$l <- list()
 	scache <- new.env()
+	scache$l <- list()
 	
 	if (is.null(env))
 		env <- .GlobalEnv
@@ -251,7 +253,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	if (length(x) > 1) {
 #browser()
 		# many variables => recursive call on single name
-		res <- lapply(x, function(xi) {rm(list=ls(dsym, all.names=TRUE), envir=dsym); Deriv_(st, xi, env, use.D, dsym, scache)})
+		res <- lapply(x, function(xi) {dsym$l=list(); Deriv_(st, xi, env, use.D, dsym, scache)})
 		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	}
@@ -262,10 +264,10 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		stch <- as.character(st)
 		if (stch == x) {
 			return(1)
-		} else if (is.null(dsym[[stch]])) {
+		} else if (is.null(dsym$l[[stch]])) {
 			return(0)
 		} else {
-			return(dsym[[stch]])
+			return(dsym$l[[stch]])
 		}
 	} else if (is.call(st)) {
 #browser()
@@ -293,11 +295,11 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					if (de_a == 0) {
 						next
 					} else if (!is.call(de_a)) {
-						dsym[[ach]] <- de_a
+						dsym$l[[ach]] <- de_a
 						next
 					}
 					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))
-					dsym[[ach]] <- d_a
+					dsym$l[[ach]] <- d_a
 					res <- append(res, call("<-", d_a, de_a))
 				} else {
 					res <- append(res, Deriv_(a, x, env, use.D, dsym, scache))
@@ -356,7 +358,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		# which arguments have to be differentiated?
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
-		lsy <- ls(dsym, all.names=TRUE)
+		lsy <- ls(dsym$l, all.names=TRUE)
 		if (!any(names(which(sapply(mc, function(it) {av <- all.vars(it); any(x == av) || any(av %in% lsy)}))) == names(rule))) {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
