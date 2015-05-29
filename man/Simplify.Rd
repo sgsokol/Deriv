@@ -17,10 +17,10 @@ Simplify(expr, env = parent.frame(), scache = new.env())
    \item a language: \code{quote(x+x)}
 }}
 
-\item{env}{An environment in wich a simplified function is created
+\item{env}{An environment in which a simplified function is created
 if \code{expr} is a function. This argument is ignored in all other cases.}
 
-\item{scache}{An environment in which cached simplified expression are stored}
+\item{scache}{An environment where there is a list in which simplified expression are cached}
 }
 \value{
 A simplified expression. The result is of the same type as
@@ -30,7 +30,7 @@ A simplified expression. The result is of the same type as
 Symbollic simplification of an expression or function
 }
 \details{
-An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
+An environment \code{simplifications} containing simplification rules, is exported in the namespace accessible by the user.
 }
 \concept{
 symbolic simplification

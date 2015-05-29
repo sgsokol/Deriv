@@ -3,11 +3,14 @@
 \name{Deriv}
 \alias{Deriv}
 \alias{drule}
+\alias{qlist}
 \title{Symbollic differentiation of an expression or function}
 \usage{
 Deriv(f, x = if (is.function(f)) names(formals(f)) else all.vars(if
   (is.character(f)) parse(text = f) else f), env = if (is.function(f))
   environment(f) else parent.frame(), use.D = FALSE, cache.exp = TRUE)
+
+qlist(...)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -35,9 +38,11 @@ it is set by default to .GlobalEnv}
 must be used for differentiation of basic expressions.}
 
 \item{cache.exp}{An optional logical (default TRUE), indicates if
- final expression must be optimized with cached subexpressions.
- If enabled, repeated calculations are made only once and their
- results stored in cache variables which are then reused.}
+final expression must be optimized with cached subexpressions.
+If enabled, repeated calculations are made only once and their
+results stored in cache variables which are then reused.}
+
+\item{...}{cf. help(alist)}
 }
 \value{
 \itemize{
@@ -108,6 +113,9 @@ NB. In \code{abs()} and \code{sign()} function, singularity treatment at point 0
 
 NB2. In Bessel functions, derivatives are calculated only by the first argument,
      not by the \code{nu} argument which is supposed to be constant.
+
+NB3. qlist() is deprecated. Use a standard function alist() instead.
+     qlist() will be removed starting from the version 3.6
 }
 \examples{
 \dontrun{f <- function(x) x^2}

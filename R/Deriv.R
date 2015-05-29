@@ -1,6 +1,6 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
-#' @aliases Deriv drule
+#' @aliases Deriv drule qlist
 #' @concept symbollic differentiation
 #' 
 #' @param f An expression or function to be differentiated.
@@ -27,6 +27,7 @@
 #'  final expression must be optimized with cached subexpressions.
 #'  If enabled, repeated calculations are made only once and their
 #'  results stored in cache variables which are then reused.
+#' @param ... cf. help(alist)
 #' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
@@ -93,6 +94,9 @@
 #' 
 #' NB2. In Bessel functions, derivatives are calculated only by the first argument,
 #'      not by the \code{nu} argument which is supposed to be constant.
+#' 
+#' NB3. qlist() is deprecated. Use a standard function alist() instead.
+#'      qlist() will be removed starting from the version 3.6
 #' @author Andrew Clausen (original version) and Serguei Sokol (maintainer)
 #' @examples
 #'
@@ -398,7 +402,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	}
 }
 
-qlist <- alist # qlist() is deprecated, kept for legacy only
+##' @rdname Deriv
+qlist <- function(...) {
+   # qlist() is deprecated, kept for legacy only
+   .Deprecated("alist")
+   return()
+}
 drule <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)

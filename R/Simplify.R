@@ -15,12 +15,12 @@
 #'    \item a right hand side of a formula: \code{~x+x}
 #'    \item a language: \code{quote(x+x)}
 #' }
-#' @param env An environment in wich a simplified function is created
+#' @param env An environment in which a simplified function is created
 #'  if \code{expr} is a function. This argument is ignored in all other cases.
 #' @param scache An environment where there is a list in which simplified expression are cached
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
-#' @details An environment \code{simplifications} containing simplification rules, is exported in the user namespace.
+#' @details An environment \code{simplifications} containing simplification rules, is exported in the namespace accessible by the user.
 Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 	if (is.null(scache$l))
 		scache$l <- list() # for stand alone use of Simplify
