@@ -607,6 +607,10 @@ negate.expr <- function(e) {
 	else # e is supposed to be a unitary minus
 		e[[2]]
 }
+is.assign <- function(e) {
+	# detect if it is an assignment operator
+	is.call(e) && (e[[1]] == as.symbol("<-") || e[[1]] == as.symbol("="))
+}
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
 	# the sign of each term is determined by the nd$sminus logical item.
@@ -775,7 +779,7 @@ lc2expr <- function(lc, scache) {
 		eneg <- eneg[order(sapply(eneg, format1))]
 	}
 	if (length(epos) == 0)
-		return(if (length(eneg) == 0) 0 else Simplify_(call("-", li2sum(eneg)), scache))
+		return(if (length(eneg) == 0) 0 else call("-", li2sum(eneg)))
 	else
 		return(if (length(eneg) == 0) li2sum(epos) else Simplify_(call("-", li2sum(epos), li2sum(eneg)), scache))
 }

@@ -289,20 +289,26 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 #browser()
 			# AD differentiation
 			res=list(st[[1]])
-			for (a in args) {
-				if (is.call(a) && (a[[1]] == as.symbol("<-") || a[[1]] == as.symbol("="))) {
+			for (iarg in seq_along(args)) {
+				a=args[[iarg]]
+				if (is.assign(a)) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
 					res <- append(res, a)
-					de_a <- Deriv_(a[[3]], x, env, use.D, dsym, scache)
 					ach <- as.character(a[[2]])
+					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))
+					if (iarg < length(args) && is.assign(args[[iarg+1]]) && as.character(args[[iarg+1]][[2]]) == d_a) {
+						# already differentiated in previous calls
+						dsym$l[[ach]] <- d_a
+						next
+					}
+					de_a <- Deriv_(a[[3]], x, env, use.D, dsym, scache)
 					if (de_a == 0) {
 						next
 					} else if (!is.call(de_a)) {
 						dsym$l[[ach]] <- de_a
 						next
 					}
-					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))
 					dsym$l[[ach]] <- d_a
 					res <- append(res, call("<-", d_a, de_a))
 				} else {
