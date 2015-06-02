@@ -16,6 +16,8 @@ test_that("rational simplifications", {
    expect_equal_lang(a/a, 1) # complete single simplification
    expect_equal_lang(2/2, 1) # complete single numeric simplification
    expect_equal_lang(a*b/(b*a), 1) # complete multiple simplification
+   expect_equal_lang(a/(b*a^x), a^(1 - x)/b) # diff numeric - symbol
+   expect_equal_lang(a^x/(b*a), a^(x - 1)/b) # diff symbol - numeric
    expect_equal_lang(a/(b*a), 1/b) # single simplification in denominator
    expect_equal_lang(-a/(b*a), -(1/b)) # single negative simplification in denominator
    expect_equal_lang(2/(b*2), 1/b) # single numeric simplification in denominator

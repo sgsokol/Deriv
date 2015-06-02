@@ -223,11 +223,8 @@ p_fa)
 	# form final symbolic expression
 	# replace all i_lc by one product of fa_nd and lincomb of the reduced nds
 	rest <- Simplify_(lc2expr(lc[i_lc], scache), scache)
-	if (is.numeric(rest) && rest < 0) {
-		rest <- -rest
-		fa_nd$sminus <- !fa_nd$sminus
-	} else if (is.uminus(rest)) {
-		rest <- rest[[2]]
+	if (is.neg.expr(rest)) {
+		rest <- negate.expr(rest)
 		fa_nd$sminus <- !fa_nd$sminus
 	}
 	fa_nd$num$b <- append(fa_nd$num$b, rest)
@@ -261,9 +258,9 @@ p_fa)
 	if (a == 0 || (b == 0 && !div)) {
 		0
 	} else if (a == 1 && !div) {
-		if (sminus) substitute(-b) else b
+		if (sminus) call("-", b) else b
 	} else if (b == 1) {
-		if (sminus) substitute(-a) else a
+		if (sminus) call("-", a) else a
 	} else if (div && identical(a, b)) {
 		if (sminus) -1 else 1
 	} else {
@@ -346,12 +343,12 @@ p_fa)
 				# simplify power for this pair
 				ipair <- cbind(ipair, c(inum, iden))
 				res <- Simplify_(call("-", nd$num$p[[inum]], nd$den$p[[iden]]), scache)
-				if (res > 0) {
+				if (is.neg.expr(res)) {
+					nd$num$p[[inum]] <- 0
+					nd$den$p[[iden]] <- negate.expr(res)
+				} else {
 					nd$num$p[[inum]] <- res
 					nd$den$p[[iden]] <- 0
-				} else {
-					nd$num$p[[inum]] <- 0
-					nd$den$p[[iden]] <- Simplify_(substitute(-res), scache)
 				}
 			}
 		}
@@ -533,7 +530,7 @@ Numden <- function(expr) {
 	} else if (is.uplus(expr)) {
 		Numden(expr[[2]])
 	} else if (is.symbol(expr)) {
-		list(num=list(b=list(expr), p=1),
+		list(num=list(b=list(expr), p=list(1)),
 			sminus=FALSE,
 			fa=list(num=1, den=1))
 	} else if (is.numeric(expr)) {
@@ -558,23 +555,25 @@ Numden <- function(expr) {
 				sminus=xor(a$sminus, b$sminus),
 				fa=list(num=a$fa$num*b$fa$den, den=a$fa$den*b$fa$num))
 		} else if (expr[[1]] == as.symbol("^")) {
-			if (expr[[3]] < 0) {
+			if (is.neg.expr(expr[[3]])) {
 				# make the power look positive
-				list(den=list(b=list(expr[[2]]), p=if (is.numeric(expr[[3]])) -expr[[3]] else list(expr[[3]][[2]])),
+				list(den=list(b=list(expr[[2]]), p=list(negate.expr(expr[[3]]))),
 					sminus=FALSE,
-					fa=list(num=1, den=1))
+					fa=list(num=1, den=1)
+				)
 			} else {
 				list(num=list(b=list(expr[[2]]), p=list(expr[[3]])),
 					sminus=FALSE,
-					fa=list(num=1, den=1))
+					fa=list(num=1, den=1)
+				)
 			}
 		} else {
-			list(num=list(b=list(expr), p=1),
+			list(num=list(b=list(expr), p=list(1)),
 				sminus=FALSE,
 				fa=list(num=1, den=1))
 		}
 	} else {
-		list(num=list(b=list(expr), p=1),
+		list(num=list(b=list(expr), p=list(1)),
 			sminus=FALSE,
 			fa=list(num=1, den=1))
 	}
@@ -594,6 +593,19 @@ is.unumeric <- function(e) {
 is.conuloch <- function(e) {
 	# detect if e is complex, numeric, logical or character
 	return(is.numeric(e) || is.logical(e) || is.complex(e) || is.character(e))
+}
+is.neg.expr <- function(e) {
+	# detect if e is a negative expression, i.e. is one of:
+	#  - negative real number
+	#  - unitary minus (-a)
+	return((is.numeric(e) && e < 0) || is.uminus(e))
+}
+negate.expr <- function(e) {
+	# make negative expression looking positive or inverse the difference
+	if (is.numeric(e)) 
+		-e
+	else # e is supposed to be a unitary minus
+		e[[2]]
 }
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
@@ -741,7 +753,7 @@ nd2expr <- function(nd, scache, sminus=NULL) {
 		else
 			expr <- call("/", expr, fa$den)
 	}
-	expr <- if (sminus) substitute(-expr) else expr
+	expr <- if (sminus) call("-", expr) else expr
 #print(sprintf("nd->%s", format1(expr)))
 	return(expr)
 }
