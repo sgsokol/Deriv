@@ -37,6 +37,7 @@ test_that("log simplifications", {
    expect_equal_lang(log(exp(a)), a)
    expect_equal_lang(log(a^n), n*log(a))
    expect_equal_lang(log(sqrt(a)), 0.5*log(a))
+   expect_equal_lang(log(1+x), log1p(x))
 })
 test_that("sqrt simplifications", {
    expect_equal_lang(sqrt(a), sqrt(a)) # no change must occur
@@ -60,7 +61,9 @@ test_that("factorizations", {
    expect_equal_lang(1+x-1, x)
 })
 test_that("term order", {
-   expect_equal_lang(a(x+1)+a(x-1), a(x+1)+a(x-1)) # no change must occur
-   expect_equal_lang(a(x-1)+a(x+1), a(x+1)+a(x-1)) # "+" is before "-" in C collate. It is inverse in fr_FR.UTF8
+   expect_equal_lang(a(1+x)+a(x-1), a(1+x)+a(x-1)) # no change must occur
+   expect_equal_lang(a(x-1)+a(x+1), a(1+x)+a(x-1)) # "+" is before "-" in C collate. It is inverse in fr_FR.UTF8
+   expect_equal_lang(1+a, 1+a) # no change must occur
+   expect_equal_lang(a+1, 1+a)
 })
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

@@ -124,7 +124,11 @@ Simplify_ <- function(expr, scache) {
 	} else if (identical(a, b)) {
 		return(if (add) Simplify_(call("*", 2, a), scache) else 0)
 	} else if (!is.call(a) && !is.call(b)) {
-		return(expr) # nothing to simplify
+		if (add) {
+			# just reorder
+			expr[-1] <- expr[1+order(sapply(expr[-1], as.character))]
+		}
+		return(expr)
 	}
 	# factorise most repeated terms
 	alc <- Lincomb(a)
@@ -432,8 +436,13 @@ Simplify.log <- function(expr, scache=NULL) {
 			a[[2]] <- expr[[2]][[2]]
 			expr[[2]] <- expr[[2]][[3]] # unitary "+" cannot appear here
 			expr <- Simplify_(call("-", a, expr), scache)
-		} else {
-			expr
+		} else if (subf == "+") {
+			# replace log(1+x) by log1p(x)
+			if (expr[[2]][[2]] == 1) {
+				expr <- call("log1p", expr[[2]][[3]])
+			} else if (expr[[2]][[3]] == 1) {
+				expr <- call("log1p", expr[[2]][[2]])
+			}
 		}
 	}
 	if (length(expr) == 3 && identical(expr[[2]], expr[[3]])) {
