@@ -253,11 +253,12 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 
 # workhorse function doing the main work of differentiation
 Deriv_ <- function(st, x, env, use.D, dsym, scache) {
+	stch <- as.character(if (is.call(st)) st[[1]] else st)
 	# Make x scalar and wrap results in a c() call if length(x) > 1
-	if (length(x) > 1) {
+	if (length(x) > 1 && stch != "{") {
 #browser()
 		# many variables => recursive call on single name
-		res <- lapply(x, function(xi) {dsym$l=list(); Deriv_(st, xi, env, use.D, dsym, scache)})
+		res <- lapply(x, function(xi) Deriv_(st, xi, env, use.D, dsym, scache))
 		names(res) <- x;
 		return(as.call(c(as.symbol("c"), res)))
 	}
@@ -268,10 +269,10 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		stch <- as.character(st)
 		if (stch == x) {
 			return(1)
-		} else if (is.null(dsym$l[[stch]])) {
+		} else if (is.null(dsym$l[[x]][[stch]])) {
 			return(0)
 		} else {
-			return(dsym$l[[stch]])
+			return(dsym$l[[x]][[stch]])
 		}
 	} else if (is.call(st)) {
 #browser()
@@ -287,10 +288,17 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		# special cases: out of rule table or args(stch) -> NULL
 		if (stch == "{") {
 #browser()
-			# AD differentiation
+			# AD differentiation (may be with many x)
 			res=list(st[[1]])
+			# initiate dsym[[xi]]
+			for (xi in x) {
+				if (is.null(dsym$l[[xi]]))
+					dsym$l[[xi]] <- list()
+			}
+			# collect defined var names (to avoid redifferentiation)
+			defs <- sapply(as.list(st)[-1], function(e) if (is.assign(e)) as.character(e[[2]]) else "")
 			for (iarg in seq_along(args)) {
-				a=args[[iarg]]
+				a <- args[[iarg]]
 				if (is.assign(a)) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
@@ -298,23 +306,33 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					Simplify_(a, scache)
 					res <- append(res, a)
 					ach <- as.character(a[[2]])
-					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))
-					if (iarg < length(args) && is.assign(args[[iarg+1]]) && as.character(args[[iarg+1]][[2]]) == d_a) {
-						# already differentiated in previous calls
-						dsym$l[[ach]] <- d_a
-						next
+					for (xi in x) {
+						d_a <- as.symbol(paste(".", ach, "_", xi, sep=""))
+						if (any(d_a == defs)) {
+							# already differentiated in previous calls
+							dsym$l[[xi]][[ach]] <- d_a
+							next
+						}
+						de_a <- Deriv_(a[[3]], xi, env, use.D, dsym, scache)
+						if (de_a == 0) {
+							next
+						} else if (!is.call(de_a)) {
+							dsym$l[[xi]][[ach]] <- de_a
+							next
+						}
+						dsym$l[[xi]][[ach]] <- d_a
+						res <- append(res, call("<-", d_a, de_a))
+						# store it in scache too
+						scache$l[[format1(de_a)]] <- as.symbol(d_a)
 					}
-					de_a <- Deriv_(a[[3]], x, env, use.D, dsym, scache)
-					if (de_a == 0) {
-						next
-					} else if (!is.call(de_a)) {
-						dsym$l[[ach]] <- de_a
-						next
-					}
-					dsym$l[[ach]] <- d_a
-					res <- append(res, call("<-", d_a, de_a))
 				} else {
-					res <- append(res, Deriv_(a, x, env, use.D, dsym, scache))
+					de_a <- lapply(x, function(xi) Deriv_(a, xi, env, use.D, dsym, scache))
+					if (length(x) > 1) {
+						names(de_a) <- x
+						res <- append(res, as.call(c(as.symbol("c"), de_a)))
+					} else {
+						res <- append(res, de_a)
+					}
 				}
 			}
 			return(as.call(res))
@@ -370,7 +388,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		# which arguments have to be differentiated?
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
-		lsy <- ls(dsym$l, all.names=TRUE)
+		lsy <- unlist(lapply(dsym$l, ls, all.names=TRUE))
 		if (!any(names(which(sapply(mc, function(it) {av <- all.vars(it); any(x == av) || any(av %in% lsy)}))) == names(rule))) {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
