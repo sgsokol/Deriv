@@ -1,3 +1,11 @@
+Version 3.5.4
+=============
+
+* 2015-06-09
+ - added the left hand side of assignment operator to simplification cache
+ - Cache() is optimized to use assignements already present in the expression
+ - fixed placement of auxiliary variable in Cache()
+
 Version 3.5.3
 =============
 
