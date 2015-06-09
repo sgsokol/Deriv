@@ -664,15 +664,15 @@ Leaves <- function(st, ind="1", res=new.env()) {
 			res$rhs[[ind]] <- format1(st)
 		} else {
 			if (!is.null(res$lhs[[ind]]))
-				stop("Reassignment is not supported yet in caching.")
+				stop("Re-assignment is not supported yet in caching.")
 			if (is.call(st[[2]]))
 				stop("Cannot handle yet indexing in left values.")
 			lhs <- as.character(st[[2]])
 			res$lhs[[ind]] <- lhs # we cannot handle yet `[`, `$` etc.
 			res$def[[lhs]] <- format1(st[[3]])
 			# exclude this assignement from replacements if .eX
-			if (regexpr("\\.+e[0-9]+", lhs) > 0)
-				return(res)
+			#if (regexpr("\\.+e[0-9]+", lhs) > 0)
+			#	return(res)
 		}
 		args <- as.list(st)[-1]
 		l <- lapply(seq_along(args), function(i) Leaves(args[[i]], paste(ind, i+1, sep="."), res))

@@ -5,6 +5,7 @@ Version 3.5.4
  - added the left hand side of assignment operator to simplification cache
  - Cache() is optimized to use assignements already present in the expression
  - fixed placement of auxiliary variable in Cache()
+ - AD produces better code for multiple x
 
 Version 3.5.3
 =============
