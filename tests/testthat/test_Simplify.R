@@ -66,4 +66,21 @@ test_that("term order", {
    expect_equal_lang(1+a, 1+a) # no change must occur
    expect_equal_lang(a+1, 1+a)
 })
+test_that("Cache test", {
+   expect_equal(Cache(quote(c(a+b, sin(a+b)))), quote({
+    .e1 <- a + b
+    c(.e1, sin(.e1))
+    }
+    ))
+   expect_equal(Cache(quote({t=a+b; c(a+b, sin(a+b))})), quote({
+    t = a + b
+    c(t, sin(t))
+    }
+    ))
+   expect_equal(Simplify(quote({t=a+b; c(a+b, sin(a+b))})), quote({
+    t = a + b
+    c(t, sin(t))
+    }
+    ))
+})
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

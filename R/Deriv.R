@@ -294,6 +294,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 				if (is.assign(a)) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
+					# put in scache the assignement
+					Simplify_(a, scache)
 					res <- append(res, a)
 					ach <- as.character(a[[2]])
 					d_a <- as.symbol(paste(".", ach, "_", x, sep=""))

@@ -525,6 +525,13 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	}
 	expr
 }
+`Simplify.=` <- function(expr, scache=NULL) {
+	# just strore the rhs in the scache
+	if (is.symbol(expr[[2]]) && is.call(expr[[3]])) {
+		scache$l[[format1(expr[[3]])]] <- expr[[2]]
+	}
+	expr
+}
 
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
@@ -644,30 +651,79 @@ Lincomb <- function(expr) {
 
 # return an environement in wich stored subexpressions with
 # an index giving the position of each subexpression in the
-# whole statement st
+# whole statement st. Index is given as a string i1.i2.i3...
+# where the integeres iN refer to st[[i2]][[i3]][[...]]
 Leaves <- function(st, ind="1", res=new.env()) {
+	if (is.null(res$rhs)) {
+		res$rhs <- list()
+		res$lhs <- list()
+		res$def <- list() # store definitions by asignments
+	}
 	if (is.call(st)) {
-		res[[ind]] <- format1(st)
+		if (st[[1]] != as.symbol("<-") && st[[1]] != as.symbol("=")) {
+			res$rhs[[ind]] <- format1(st)
+		} else {
+			if (!is.null(res$lhs[[ind]]))
+				stop("Reassignment is not supported yet in caching.")
+			if (is.call(st[[2]]))
+				stop("Cannot handle yet indexing in left values.")
+			lhs <- as.character(st[[2]])
+			res$lhs[[ind]] <- lhs # we cannot handle yet `[`, `$` etc.
+			res$def[[lhs]] <- format1(st[[3]])
+			# exclude this assignement from replacements if .eX
+			if (regexpr("\\.+e[0-9]+", lhs) > 0)
+				return(res)
+		}
 		args <- as.list(st)[-1]
 		l <- lapply(seq_along(args), function(i) Leaves(args[[i]], paste(ind, i+1, sep="."), res))
 	}
 	return(res)
 }
 
+# convert index calculated by Leaves() to a call like st[[i2]][[i3]]...
+# the first two chars "1." are striped out
+ind2call <- function(ind, st="st")
+	if (ind == "1") as.symbol(st) else parse(text=sprintf("%s[[%s]]", st, gsub("\\.", "]][[", substring(ind, 3))))[[1]]
+
 # replace repeated subexpressions by cached values
-Cache <- function(st, env=Leaves(st), prefix="") {
+# prefix is used to form auxiliary variable
+Cache <- function(st, env=Leaves(st), prefix="", stind="") {
 	stch <- if (is.call(st)) as.character(st[[1]]) else ""
-	if (stch == "<-" || stch == "=") {
-		return(call("<-", st[[2]], Cache(st[[3]], prefix=paste(".", st[[1]], sep=""))))
-	} else if (stch == "{" || stch == "c") {
-		return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache))))
-	}
+	env$lhs <- unlist(env$lhs)
+	#if (stch == "<-" || stch == "=") {
+	#	return(call("<-", st[[2]], Cache(st[[3]], env=env, prefix=paste(".", st[[2]], sep=""))))
+	#} else if (stch == "{" || stch == "c") {
+	#	return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache, env=env))))
+	#}
 	alva <- all.vars(st)
 	p <- grep(sprintf("^%s.e[0-9]+", prefix), alva, value=T)
-	if (length(p) > 0) {
+	if (nchar(prefix) == 0 && length(p) > 0) {
 		prefix <- max(p)
 	}
-	ve <- unlist(as.list(env))
+	ve <- unlist(env$rhs)
+	defs <- unlist(env$def)
+	# if the subexpression is in defs, replace it with the symbol in the lhs
+	tdef <- outer(ve, defs, "==")
+#browser()
+	if (ncol(tdef) > 0) {
+		for (ic in seq_len(ncol(tdef))) {
+			v <- tdef[,ic]
+			nme <- colnames(tdef)[ic]
+			for (i in which(v)) {
+				ind <- names(v)[i]
+				ve[i] <- NA
+				# skip self assignment
+				ispl <- strsplit(ind, ".", fixed=TRUE)[[1]]
+				indup <- paste(ispl[-length(ispl)], collapse=".")
+				stup <- eval(ind2call(indup))
+				if (is.assign(stup) && as.character(stup[[2]]) == nme)
+					next
+				do.call(`<-`, list(ind2call(ind), quote(as.symbol(nme))))
+			}
+		}
+	}
+	suppressWarnings(ve <- ve[!is.na(ve)])
+	
 	ta <- table(ve)
 	ta <- ta[ta > 1]
 	if (length(ta) == 0)
@@ -675,11 +731,11 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	e <- list() # will store the result code
 	alva <- list()
 	for (sub in names(sort(ta, decreasing=TRUE))) {
-		# get indexes for this subexpression
+		# get st indexes for this subexpression
 		isubs <- names(which(ve == sub))
 		for (i in seq_along(isubs)) {
 			isub <- isubs[i]
-			subst <- parse(text=sprintf("st[[%s]]", gsub("\\.", "]][[", substring(isub, 3))))[[1]]
+			subst <- ind2call(isub)
 			if (i == 1) {
 				esubst <- try(eval(subst), silent=TRUE)
 				if (inherits(esubst, "try-error"))
@@ -695,15 +751,12 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 			do.call(`<-`, list(subst, as.symbol("esub")))
 		}
 	}
-#browser()
 	alva[["end"]] <- all.vars(st)
 	# where .eX are used? If only once, develop, replace and remove it
 	wh <- lapply(seq_along(e), function(i) {
 		it=sprintf("%s.e%d", prefix, i)
 		which(sapply(alva, function(v) any(it == v)))
 	})
-	# the final touch
-	e[[ie+1]] <- st
 	dere <- sapply(wh, function(it) if (length(it) == 1 && names(it) != "end") it[[1]] else 0)
 	for (i in which(dere != 0)) {
 		idest <- dere[i]
@@ -711,8 +764,80 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 		li[[sprintf("%s.e%d", prefix, i)]] <- e[[i]][[3]]
 		e[[idest]][[3]] <- do.call("substitute", c(e[[idest]][[3]], list(li)))
 	}
-	e <- c(list(as.symbol("{")), e[which(!dere)], e[length(e)])
-	return(as.call(e))
+	e <- e[which(!dere)]
+#browser()
+	# place auxiliary vars after the definition of the used vars
+	if (stch != "{") {
+		l <- c(as.symbol("{"), e, st)
+		st <- as.call(l)
+	} else {
+		indst <- c() # vector of char indexes after which e must be inserted in st. "1" means insret as first after `{`
+		ist="1"
+		for (aux in e) {
+			depv <- all.vars(aux[[3]])
+			# find the biggest index in st where depv are assigned
+			suppressWarnings(whst <- max(sapply(depv, function(v) max(which(v == env$lhs)))))
+			ist <- max.nat(ist, if (whst == -Inf) "1" else names(env$lhs)[whst])
+			indst <- c(indst, ist)
+		}
+		oist <- order(indst)
+		for (i in rev(oist)) {
+			ind <- indst[i]
+			if (ind == "0") {
+				stli <- as.list(st)
+				ia <- 1
+			} else {
+				ili <- gsub("\\.[0-9]+$", "", ind) # ili is the list where assihnment is iserted, ia is index in this list after which the insertion takes place
+				ia <- as.integer(substring(ind, nchar(ili)+2))
+				stcall <- ind2call(ili)
+				stli <- as.list(eval(stcall))
+			}
+			stli <- as.call(append(stli, e[[i]], after=ia))
+			do.call("<-", list(stcall, quote(stli)))
+		}
+	}
+	return(st)
+}
+max.nat <- function(a, b, na.rm=FALSE, sep=".") {
+	# choose maximum string value among two strings a and b according
+	# to _natural ordering, i.e. here "1.10" > "1.2"
+	# Each string is splitted in a sequence of ingeter numbers using
+	# strsplit() with sep as separating element
+	# Eache element of the sequence is compared with corresponding
+	# element in the other sequence till the first max value is found
+	# if one sequence is longuer than the other with the first elements all equal,
+	# then the longuest sequence is the result
+	
+	if (na.rm) {
+		if (is.na(a))
+			return(b)
+		if (is.na(b))
+			return(a)
+	}
+	# split the strings
+	
+	spl <- lapply(strsplit(c(a, b), sep, fixed=TRUE), as.integer)
+	len <- sapply(spl, length)
+	res <- NA
+	va <- spl[[1]]
+	vb <- spl[[2]]
+	for (i in seq_len(min(len))) {
+		if (va[i] > vb[i])
+			res <- a
+		else if (va[i] < vb[i])
+			res <- b
+		else
+			res
+	}
+	if (is.na(res)) {
+		# all equal in first elements
+		if (len[[1]] > len[[2]])
+			return(a)
+		else
+			return(b)
+	} else {
+		return(res)
+	}
 }
 
 nd2expr <- function(nd, scache, sminus=NULL) {
@@ -827,3 +952,5 @@ assign("sign", `Simplify.sign`, envir=simplifications)
 assign("if", `Simplify.if`, envir=simplifications)
 assign("besselI", `Simplify.bessel`, envir=simplifications)
 assign("besselK", `Simplify.bessel`, envir=simplifications)
+assign("<-", `Simplify.=`, envir=simplifications)
+assign("=", `Simplify.=`, envir=simplifications)
