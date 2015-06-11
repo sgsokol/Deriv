@@ -1,3 +1,9 @@
+Version 3.5.5
+=============
+
+* 2015-06-11
+ - fixed assignement order in Deriv_() and Cache()
+
 Version 3.5.4
 =============
 

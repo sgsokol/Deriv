@@ -297,6 +297,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			}
 			# collect defined var names (to avoid redifferentiation)
 			defs <- sapply(as.list(st)[-1], function(e) if (is.assign(e)) as.character(e[[2]]) else "")
+			alva=list()
 			for (iarg in seq_along(args)) {
 				a <- args[[iarg]]
 				if (is.assign(a)) {
@@ -305,9 +306,11 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					# put in scache the assignement
 					Simplify_(a, scache)
 					res <- append(res, a)
+					alva <- append(alva, list(all.vars(a)))
 					ach <- as.character(a[[2]])
 					for (xi in x) {
-						d_a <- as.symbol(paste(".", ach, "_", xi, sep=""))
+						d_ach <- paste(".", ach, "_", xi, sep="")
+						d_a <- as.symbol(d_ach)
 						if (any(d_a == defs)) {
 							# already differentiated in previous calls
 							dsym$l[[xi]][[ach]] <- d_a
@@ -322,6 +325,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 						}
 						dsym$l[[xi]][[ach]] <- d_a
 						res <- append(res, call("<-", d_a, de_a))
+						alva <- append(alva, list(c(d_ach, all.vars(de_a))))
 						# store it in scache too
 						scache$l[[format1(de_a)]] <- as.symbol(d_a)
 					}
@@ -335,6 +339,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					}
 				}
 			}
+			i <- toporder(alva)
+			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
 			return(as.call(res))
 		} else if (is.uminus(st)) {
 			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache=scache))

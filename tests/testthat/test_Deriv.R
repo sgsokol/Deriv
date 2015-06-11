@@ -173,9 +173,19 @@ g2n <- Deriv(g1n, "x", cache.exp=FALSE) # cache disabled
 m <- 0.5
 s <- 3.
 x=seq(-2, 2, len=11)
+f <- function(a) (1+a)^(1/a)
+f1c <- Deriv(f)
+f2c <- Deriv(f1c)
+f3c <- Deriv(f2c)
+f1 <- Deriv(f, cache.exp=FALSE)
+f2 <- Deriv(f1, cache.exp=FALSE)
+f3 <- Deriv(f2, cache.exp=FALSE)
+a=seq(0.01, 2, len=11)
+
 test_that("expression cache test", {
    expect_equal_deriv(exp(-0.5*(x-m)^2/s^2)/s/sqrt(2*pi), -(exp(-(0.5 * ((x - m)^2/s^2))) * (x - m)/(s^3 * sqrt(2 * pi))))
    expect_equal(g2n(x, m, s), g2c(x, m, s))
+   expect_equal(f3(a), f3c(a))
 })
 
 # test error reporting

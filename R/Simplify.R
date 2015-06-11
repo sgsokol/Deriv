@@ -771,73 +771,14 @@ Cache <- function(st, env=Leaves(st), prefix="", stind="") {
 		l <- c(as.symbol("{"), e, st)
 		st <- as.call(l)
 	} else {
-		indst <- c() # vector of char indexes after which e must be inserted in st. "1" means insret as first after `{`
-		ist="1"
-		for (aux in e) {
-			depv <- all.vars(aux[[3]])
-			# find the biggest index in st where depv are assigned
-			suppressWarnings(whst <- max(sapply(depv, function(v) max(which(v == env$lhs)))))
-			ist <- max.nat(ist, if (whst == -Inf) "1" else names(env$lhs)[whst])
-			indst <- c(indst, ist)
-		}
-		oist <- order(indst)
-		for (i in rev(oist)) {
-			ind <- indst[i]
-			if (ind == "0") {
-				stli <- as.list(st)
-				ia <- 1
-			} else {
-				ili <- gsub("\\.[0-9]+$", "", ind) # ili is the list where assihnment is iserted, ia is index in this list after which the insertion takes place
-				ia <- as.integer(substring(ind, nchar(ili)+2))
-				stcall <- ind2call(ili)
-				stli <- as.list(eval(stcall))
-			}
-			stli <- as.call(append(stli, e[[i]], after=ia))
-			do.call("<-", list(stcall, quote(stli)))
-		}
+		n <- length(st)
+		res <- c(e, as.list(st)[-c(1, n)])
+		alva <- lapply(res, all.vars)
+		i <- toporder(alva)
+		res <- c(as.symbol("{"), res[i], st[[n]])
+		st <- as.call(res)
 	}
 	return(st)
-}
-max.nat <- function(a, b, na.rm=FALSE, sep=".") {
-	# choose maximum string value among two strings a and b according
-	# to _natural ordering, i.e. here "1.10" > "1.2"
-	# Each string is splitted in a sequence of ingeter numbers using
-	# strsplit() with sep as separating element
-	# Eache element of the sequence is compared with corresponding
-	# element in the other sequence till the first max value is found
-	# if one sequence is longuer than the other with the first elements all equal,
-	# then the longuest sequence is the result
-	
-	if (na.rm) {
-		if (is.na(a))
-			return(b)
-		if (is.na(b))
-			return(a)
-	}
-	# split the strings
-	
-	spl <- lapply(strsplit(c(a, b), sep, fixed=TRUE), as.integer)
-	len <- sapply(spl, length)
-	res <- NA
-	va <- spl[[1]]
-	vb <- spl[[2]]
-	for (i in seq_len(min(len))) {
-		if (va[i] > vb[i])
-			res <- a
-		else if (va[i] < vb[i])
-			res <- b
-		else
-			res
-	}
-	if (is.na(res)) {
-		# all equal in first elements
-		if (len[[1]] > len[[2]])
-			return(a)
-		else
-			return(b)
-	} else {
-		return(res)
-	}
 }
 
 nd2expr <- function(nd, scache, sminus=NULL) {
@@ -935,7 +876,23 @@ li2sum <- function(li) {
 	else
 		call("+", li2sum(li[-len]), li[[len]])
 }
-
+toporder <- function(l, ind=seq_along(l), vars=sapply(l, `[[`, 1)) {
+	# Topological ordering of assignement operators
+	# l is a list whose memebers are resultetd from all.vars(op)
+	# ind is a subindexing vector for l (for recursive call)
+	# vars is a vector of variable which are assigned in ops[ind]
+	# return a vector of indexes like in order()
+	
+	# find independet assignements, i.e. whose rhs vars are not in vars
+#cat("ind=", ind, "\n")
+	if (length(ind) <= 1) {
+		return(ind)
+	}
+	rhsvar <- lapply(l[ind], `[`, -1)
+	indep <- which(!sapply(rhsvar, function(v) any(v %in% vars)))
+#cat("indep=", ind[indep], "\n")
+	return(c(ind[indep], toporder(l, ind[-indep], vars[-indep])))
+}
 simplifications <- new.env()
 
 assign("+", `Simplify.+`, envir=simplifications)
