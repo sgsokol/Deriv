@@ -532,6 +532,15 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	}
 	expr
 }
+`Simplify.{` <- function(expr, scache=NULL) {
+	# if the last expression is a constant just return it
+	n <- length(expr)
+	la <- expr[[n]]
+	if (n > 1 && is.conuloch(la)) {
+		expr <- la
+	}
+	expr
+}
 
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
@@ -911,3 +920,4 @@ assign("besselI", `Simplify.bessel`, envir=simplifications)
 assign("besselK", `Simplify.bessel`, envir=simplifications)
 assign("<-", `Simplify.=`, envir=simplifications)
 assign("=", `Simplify.=`, envir=simplifications)
+assign("{", `Simplify.{`, envir=simplifications)
