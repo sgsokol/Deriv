@@ -660,17 +660,24 @@ Lincomb <- function(expr) {
 
 # return an environement in wich stored subexpressions with
 # an index giving the position of each subexpression in the
-# whole statement st. Index is given as a string i1.i2.i3...
+# whole statement st ("rhs" entry). Index is given as a string i1.i2.i3...
 # where the integeres iN refer to st[[i2]][[i3]][[...]]
+# "lhs" is index to char mapping (what is defined where)
+# "def" is a mapping of lhs (char) to rhs (char)
+# "{" where accolade operators are
 Leaves <- function(st, ind="1", res=new.env()) {
 	if (is.null(res$rhs)) {
 		res$rhs <- list()
 		res$lhs <- list()
 		res$def <- list() # store definitions by asignments
+		res[["{"]] <- list()
 	}
 	if (is.call(st)) {
 		if (st[[1]] != as.symbol("<-") && st[[1]] != as.symbol("=")) {
 			res$rhs[[ind]] <- format1(st)
+			if (st[[1]] == as.symbol("{")) {
+				res[["{"]] <- append(res[["{"]], ind)
+			}
 		} else {
 			if (!is.null(res$lhs[[ind]]))
 				stop("Re-assignment is not supported yet in caching.")
@@ -786,6 +793,39 @@ Cache <- function(st, env=Leaves(st), prefix="", stind="") {
 		i <- toporder(alva)
 		res <- c(as.symbol("{"), res[i], st[[n]])
 		st <- as.call(res)
+	}
+	return(st)
+}
+
+deCache <- function(st) {
+	# do the job inverse to Cache(), i.e. substitute all auxiliary expressions
+	# in the final one
+	# NB side effect: all assignement not used in the last operation in {...} are
+	# just lost.
+	if (!is.call(st)) {
+		return(st)
+	}
+	stch <- as.character(st[[1]])
+	stl <- as.list(st)
+	if (stch == "{") {
+		repl <- list()
+		for (op in stl[-1]) {
+			# gather substitutions
+			if (is.assign(op)) {
+				repl[[as.character(op[[2]])]] <- do.call("substitute", list(deCache(op[[3]]), repl))
+			}
+		}
+		# the last operation subst
+		la <- stl[[length(stl)]]
+		if (is.assign(la)) {
+			st <- repl[[length(repl)]]
+		} else {
+			st <- do.call("substitute", list(deCache(la), repl))
+		}
+	} else {
+		# recurrsive call to deCache on all arguments of the statement
+		stl <- lapply(stl, deCache)
+		st <- as.call(stl)
 	}
 	return(st)
 }
