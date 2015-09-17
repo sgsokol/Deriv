@@ -341,7 +341,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			}
 			i <- toporder(alva)
 			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
-			return(as.call(res))
+			return(Simplify(as.call(res)))
 		} else if (is.uminus(st)) {
 			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache=scache))
 		} else if (stch == "(") {

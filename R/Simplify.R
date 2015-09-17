@@ -92,7 +92,6 @@ Simplify_ <- function(expr, scache) {
 	}
 }
 
-
 # in what follows no need to Simplify_ args neither to check if
 # all arguments are numeric. It is done in the upper Simplify_()
 `Simplify.(` <- function(expr, scache=NULL) {
@@ -536,7 +535,7 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	# if the last expression is a constant just return it
 	n <- length(expr)
 	la <- expr[[n]]
-	if (n > 1 && is.conuloch(la)) {
+	if (is.conuloch(la)) {
 		expr <- la
 	}
 	expr
@@ -718,26 +717,26 @@ Cache <- function(st, env=Leaves(st), prefix="", stind="") {
 	}
 	ve <- unlist(env$rhs)
 	defs <- unlist(env$def)
-	# if the subexpression is in defs, replace it with the symbol in the lhs
 	tdef <- outer(ve, defs, "==")
 #browser()
-	if (ncol(tdef) > 0) {
-		for (ic in seq_len(ncol(tdef))) {
-			v <- tdef[,ic]
-			nme <- colnames(tdef)[ic]
-			for (i in which(v)) {
-				ind <- names(v)[i]
-				ve[i] <- NA
-				# skip self assignment
-				ispl <- strsplit(ind, ".", fixed=TRUE)[[1]]
-				indup <- paste(ispl[-length(ispl)], collapse=".")
-				stup <- eval(ind2call(indup))
-				if (is.assign(stup) && as.character(stup[[2]]) == nme)
-					next
-				do.call(`<-`, list(ind2call(ind), quote(as.symbol(nme))))
-			}
+	# if the subexpression is in defs, replace it with the symbol in the lhs
+	for (ic in seq_len(ncol(tdef))) {
+		v <- tdef[,ic]
+		nme <- colnames(tdef)[ic]
+		idef <- names(which(env$lhs==nme))
+		for (i in which(v)) {
+			ind <- names(v)[i] # subexpression index in st
+			# skip self assignment
+			ispl <- strsplit(ind, ".", fixed=TRUE)[[1]]
+			indup <- paste(ispl[-length(ispl)], collapse=".")
+			stup <- eval(ind2call(indup))
+			if (is.assign(stup) && (as.character(stup[[2]]) == nme || natcompare(indup, idef) < 0))
+				next
+			ve[i] <- NA
+			do.call(`<-`, list(ind2call(ind), quote(as.symbol(nme))))
 		}
 	}
+
 	suppressWarnings(ve <- ve[!is.na(ve)])
 	
 	ta <- table(ve)
@@ -927,7 +926,7 @@ li2sum <- function(li) {
 }
 toporder <- function(l, ind=seq_along(l), vars=sapply(l, `[[`, 1)) {
 	# Topological ordering of assignement operators
-	# l is a list whose memebers are resultetd from all.vars(op)
+	# l is a list whose memebers are resulted from all.vars(op)
 	# ind is a subindexing vector for l (for recursive call)
 	# vars is a vector of variable which are assigned in ops[ind]
 	# return a vector of indexes like in order()
@@ -941,6 +940,40 @@ toporder <- function(l, ind=seq_along(l), vars=sapply(l, `[[`, 1)) {
 	indep <- which(!sapply(rhsvar, function(v) any(v %in% vars)))
 #cat("indep=", ind[indep], "\n")
 	return(c(ind[indep], toporder(l, ind[-indep], vars[-indep])))
+}
+natcompare <- function(s1, s2, sep="[^0-9]") {
+	# Compare two strings in natural ordering,
+	# i.e. natlower("1.12", "1.2") returns 1 (i.e s1 is greater than s2)
+	# while plain "1.12" < "1.2" returns TRUE
+	# sep is separator for string splitting
+	# By default any non number chain of characters
+	# is used as singl separator and thus is exlculed
+	# from comparison.
+	# The fields after string splitting are compared as numerics
+	# Empty string or NA are considered as -Inf, i.e. they are less
+	# than any other finite number.
+	# Return -1 if s1 is lower s2, 0 if s1 is equal to s2 and 1 otherwise
+	# 
+	v1 <- as.numeric(strsplit(s1, sep[1])[[1]])
+	v1[is.na(v1)] <- -Inf
+	v2 <- as.numeric(strsplit(s2, sep[1])[[1]])
+	v2[is.na(v2)] <- -Inf
+	l1 <- length(v1)
+	l2 <- length(v2)
+	lmin <- min(l1, l2)
+	# complete the shortest vector by -Inf
+	v1 <- c(v1, rep(-Inf, l2-lmin))
+	v2 <- c(v2, rep(-Inf, l1-lmin))
+	m1 <- v1 < v2
+	eq <- v1 == v2
+	p1 <- v1 > v2
+	if (all(m1) || (any(m1) && all(!p1)) || any(head(which(m1), 1) < head(which(p1), 1))) {
+		-1
+	} else if (all(eq)) {
+		0
+	} else {
+		1
+	}
 }
 simplifications <- new.env()
 
