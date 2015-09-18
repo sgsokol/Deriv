@@ -941,13 +941,13 @@ toporder <- function(l, ind=seq_along(l), vars=sapply(l, `[[`, 1)) {
 #cat("indep=", ind[indep], "\n")
 	return(c(ind[indep], toporder(l, ind[-indep], vars[-indep])))
 }
-natcompare <- function(s1, s2, sep="[^0-9]") {
+natcompare <- function(s1, s2, sep="[^0-9]+") {
 	# Compare two strings in natural ordering,
 	# i.e. natlower("1.12", "1.2") returns 1 (i.e s1 is greater than s2)
 	# while plain "1.12" < "1.2" returns TRUE
 	# sep is separator for string splitting
 	# By default any non number chain of characters
-	# is used as singl separator and thus is exlculed
+	# is used as a single separator and thus is exlculed
 	# from comparison.
 	# The fields after string splitting are compared as numerics
 	# Empty string or NA are considered as -Inf, i.e. they are less
