@@ -66,6 +66,12 @@ test_that("term order", {
    expect_equal_lang(1+a, 1+a) # no change must occur
    expect_equal_lang(a+1, 1+a)
 })
+test_that("{...; const}", {
+   expect_equal_lang({a=x^2; 0}, 0)
+})
+
+context("expression caching")
+
 test_that("Cache test", {
    expect_equal(Cache(quote(c(a+b, sin(a+b)))), quote({
     .e1 <- a + b
@@ -80,6 +86,11 @@ test_that("Cache test", {
    expect_equal(Simplify(quote({t=a+b; c(a+b, sin(a+b))})), quote({
     t = a + b
     c(t, sin(t))
+    }
+    ))
+   expect_equal(Cache(quote({a=x^2; b=x^2})), quote({
+    a = x^2
+    b = a
     }
     ))
 })
