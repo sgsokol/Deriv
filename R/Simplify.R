@@ -1,6 +1,6 @@
 #' @name Simplify
 #' @title Symbollic simplification of an expression or function
-#' @aliases Simplify simplifications Cache deCache
+#' @aliases Simplify simplifications
 #' @concept symbolic simplification
 # \usage{
 # Simplify(expr, env=parent.frame(), scache=new.env())
@@ -18,17 +18,9 @@
 #' @param env An environment in which a simplified function is created
 #'  if \code{expr} is a function. This argument is ignored in all other cases.
 #' @param scache An environment where there is a list in which simplified expression are cached
-#' @param st A language expression to be cached
-#' @param prefix A string to start the names of the cache variables
 #' @return A simplified expression. The result is of the same type as
 #'  \code{expr} except for formula, where a language is returned.
 #' @details An environment \code{simplifications} containing simplification rules, is exported in the namespace accessible by the user.
-#'  Cache() is used to remove redundunt calculations by storing them in
-#'  cache variables. Default parameters to Cache() does not have to be provided
-#'  by user. deCache() makes the inverse job -- a series of assignements
-#'  are replaced by only one big expression without assignement.
-#'  Sometimes it is usefull to
-#'  apply deChache() and only then pass its result to Cache().
 Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 	if (is.null(scache$l))
 		scache$l <- list() # for stand alone use of Simplify
@@ -710,8 +702,7 @@ ind2call <- function(ind, st="st")
 
 # replace repeated subexpressions by cached values
 # prefix is used to form auxiliary variable
-##' @rdname Simplify
-Cache <- function(st, env=Leaves(st), prefix="") {
+Cache <- function(st, env=Leaves(st), prefix="", stind="") {
 	stch <- if (is.call(st)) as.character(st[[1]]) else ""
 	env$lhs <- unlist(env$lhs)
 	#if (stch == "<-" || stch == "=") {
@@ -805,7 +796,6 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	return(st)
 }
 
-##' @rdname Simplify
 deCache <- function(st) {
 	# do the job inverse to Cache(), i.e. substitute all auxiliary expressions
 	# in the final one
