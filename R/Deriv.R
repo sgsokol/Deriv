@@ -185,7 +185,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		}
 		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D, dsym, scache)
 		if (cache.exp)
-			res <- Cache(res)
+			res <- Cache(Simplify(deCache(res), scache=scache))
 		return(as.function(c(af, res), envir=env))
 	}
 	x[] <- as.character(x)
@@ -196,7 +196,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		# f is to parse
 		res <- Deriv_(parse(text=f)[[1]], x, env, use.D, dsym, scache)
 		if (cache.exp)
-			res <- Cache(res)
+			res <- Cache(Simplify(deCache(res), scache=scache))
 		format1(res)
 	} else if (is.function(f)) {
 #browser()
@@ -207,7 +207,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 				acall <- as.call(c(as.symbol(fch), arg))
 				res <- Deriv_(acall, x, env, use.D, dsym, scache)
 				if (cache.exp)
-					res <- Cache(res)
+					res <- Cache(Simplify(deCache(res), scache=scache))
 				as.function(c(formals(args(f)), res), envir=env)
 			} else {
 				stop(sprintf("Internal or external function '%s()' is not in derivative table.", fch))
@@ -215,26 +215,26 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		} else {
 			res <- Deriv_(b, x, env, use.D, dsym, scache)
 			if (cache.exp)
-				res <- Cache(res)
+				res <- Cache(Simplify(deCache(res), scache=scache))
 			as.function(c(formals(f), res), envir=env)
 		}
 	} else if (is.expression(f)) {
 		res <- Deriv_(f[[1]], x, env, use.D, dsym, scache)
 		if (cache.exp)
-			res <- Cache(res)
+			res <- Cache(Simplify(deCache(res), scache=scache))
 		as.expression(res)
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
 			# rhs of the formula
 			res <- Deriv_(f[[length(f)]], x, env, use.D, dsym, scache)
 			if (cache.exp)
-				res <- Cache(res)
+				res <- Cache(Simplify(deCache(res), scache=scache))
 			res
 		} else {
 			# plain call derivation
 			res <- Deriv_(f, x, env, use.D, dsym, scache)
 			if (cache.exp)
-				res <- Cache(res)
+				res <- Cache(Simplify(deCache(res), scache=scache))
 			res
 		}
 	} else {
@@ -243,7 +243,7 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 			x <- all.vars(f)
 		res <- Deriv_(f, x, env, use.D, dsym, scache)
 		if (cache.exp)
-			res <- Cache(res)
+			res <- Cache(Simplify(deCache(res), scache=scache))
 		res
 		#stop("Invalid type of 'f' for differentiation")
 	}
@@ -354,7 +354,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 						res <- append(res, call("<-", d_a, de_a))
 						alva <- append(alva, list(c(d_ach, all.vars(de_a))))
 						# store it in scache too
-						scache$l[[format1(de_a)]] <- as.symbol(d_a)
+						#scache$l[[format1(de_a)]] <- as.symbol(d_a)
 					}
 				} else {
 					de_a <- lapply(seq_along(x), function(ix) Deriv_(a, x[ix], env, use.D, dsym, scache))
@@ -366,7 +366,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					}
 				}
 			}
-browser()
+#browser()
 			if (length(alva) == length(res)) {
 				i <- toporder(alva[-length(alva)]) # the last expression must stay the last
 			} else {
@@ -426,7 +426,7 @@ browser()
 		# which arguments can be differentiated?
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
-		lsy <- unlist(lapply(dsym$l, function(it) if (is.list(it)) unlist(lapply(it, ls, all.names=TRUE)) else ls(it, all.names=TRUE)))
+		lsy <- unlist(lapply(dsym$l, function(it) if (get_sub_x && is.list(it)) unlist(lapply(it, ls, all.names=TRUE)) else ls(it, all.names=TRUE)))
 		if (!any(names(which(sapply(mc, function(it) {av <- all.vars(it); (if (get_sub_x) any(nm_x == av) else any(x == av)) || any(av %in% lsy)}))) == names(rule))) {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
