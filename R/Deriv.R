@@ -427,7 +427,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
 		lsy <- unlist(lapply(dsym$l, function(it) if (get_sub_x && is.list(it)) unlist(lapply(it, ls, all.names=TRUE)) else ls(it, all.names=TRUE)))
-		if (!any(names(which(sapply(mc, function(it) {av <- all.vars(it); (if (get_sub_x) any(nm_x == av) else any(x == av)) || any(av %in% lsy)}))) == names(rule))) {
+		if (!any(names(which(sapply(mc, function(it) {av <- all.vars(it); (if (get_sub_x) any(nm_x == av) else any(x == av)) || any(av %in% lsy)}))) %in% names(rule))) {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
 		}

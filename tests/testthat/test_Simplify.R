@@ -83,9 +83,9 @@ test_that("Cache test", {
     c(t, sin(t))
     }
     ))
-   expect_equal(Simplify(quote({t=a+b; c(a+b, sin(a+b))})), quote({
-    t = a + b
-    c(t, sin(t))
+   expect_equal(Cache(Simplify(deCache(quote({t=a+b; c(a+b, sin(a+b))})))), quote({
+    .e1 <- a + b
+    c(.e1, sin(.e1))
     }
     ))
    expect_equal(Cache(quote({a=x^2; b=x^2})), quote({

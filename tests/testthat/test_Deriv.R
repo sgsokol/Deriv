@@ -188,6 +188,15 @@ test_that("expression cache test", {
    expect_equal(f3(a), f3c(a))
 })
 
+# composite function differentiation/caching (issue #6)
+f<-function(x){ t<-x^2; log(t) }
+g<-function(x) cos(f(x))
+test_that("composite function", {
+   expect_equal(Deriv(g,"x"), function (x) -(2 * (sin(f(x))/x)))
+})
+
+
+
 # test error reporting
 test_that("error reporting", {
    expect_error(Deriv(rnorm), "is not in derivative table", fixed=TRUE)
