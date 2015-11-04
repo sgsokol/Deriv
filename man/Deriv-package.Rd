@@ -43,8 +43,8 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 3.5.6\cr
-Date: \tab 2015-09-23\cr
+Version: \tab 3.6.0\cr
+Date: \tab 2015-11-04\cr
 License: \tab GPL (>= 3)\cr
 }
 Two main functions are Deriv() for differentiating

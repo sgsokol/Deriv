@@ -20,11 +20,17 @@ f can be \itemize{
  \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 }}
 
-\item{x}{An optiona character vector with variable name(s) with resptect to which
+\item{x}{An optional character vector with variable name(s) with resptect to which
 \code{f} must be differentiated. If not provided, x is guessed from
 \code{names(formals(f))}, if \code{f} is a function, or from all variables in f
 in other cases. If f is a primitive
-function, x is set to \code{names(formals(args(f)))}}
+function, x is set to \code{names(formals(args(f)))}
+To differentiate expressions including components of lists or vectors, i.e. by expressions like
+\code{p[1]}, \code{theta[["alpha"]]} or \code{theta$beta}, the vector of
+variables \code{x}
+must be a named vector. For the cited examples, \code{x} must be given
+as follows \code{c(p="1", theta="alpha", theta="beta")}. Note the repeated name \code{theta} which must be provided for every component of the list \code{theta} by which a
+differerentiation is required.}
 
 \item{env}{An environment where the symbols and functions are searched for.
 Defaults to \code{parent.frame()} for \code{f} expression and to
@@ -169,6 +175,16 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
   Deriv(myfun(z^2, FALSE), "z")
   # 2 * (z * dmyfun(z^2, FALSE))
+}
+# Differentiantion by list components
+\dontrun{
+  theta <- list(m=0.1, sd=2.)
+  x <- names(theta)
+  names(x)=rep("theta", length(theta))
+  Deriv(~exp(-(x-theta$m)**2/(2*theta$sd)), x, cache.exp=FALSE)
+# c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) *
+#  (x - theta$m)/theta$sd, theta_sd = 2 * (exp(-((x - theta$m)^2/
+#  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 }
 }
 \author{

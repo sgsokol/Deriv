@@ -247,6 +247,9 @@ myfun <- function(x, y=TRUE) NULL # do something usefull
 dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
 drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
 #cat("Deriv(myfun)=", format1(Deriv(myfun)), "\n")
+theta <- list(m=0.1, sd=2.)
+x <- names(theta)
+names(x)=rep("theta", length(theta))
 
 test_that("doc examples", {
    expect_equal_format1(Deriv(fsq), function (x) 2 * x)
@@ -258,6 +261,10 @@ test_that("doc examples", {
    expect_equal(Deriv("sin(x^2) * y", "x"), "2 * (x * y * cos(x^2))")
    expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
    expect_equal(Deriv(myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
+   expect_equal(Deriv(~exp(-(x-theta$m)**2/(2*theta$sd)), x, cache.exp=FALSE),
+    quote(c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) * (x - theta$m)/theta$sd, 
+    theta_sd = 2 * (exp(-((x - theta$m)^2/(2 * theta$sd))) * 
+        (x - theta$m)^2/(2 * theta$sd)^2))))
 })
 drule[["myfun"]] <- NULL
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)
