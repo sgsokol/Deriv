@@ -2,7 +2,7 @@ Version 3.6.1
 =============
 
 * 2016-01-19
- - added 'ifelse' function to differentiable expressions
+ - added 'ifelse' function to differentiable expressions (AleMorales@github)
  - fixed trying to differentiate arguments that should not be
 
 Version 3.6.0
