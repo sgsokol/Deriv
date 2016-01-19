@@ -441,7 +441,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		aa <- modifyList(da, mc) # all arguments with actual values
 		# actualize the rule with actual arguments
 		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
-#browser()		
+#browser()
 		# which arguments can be differentiated?
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
@@ -450,9 +450,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
 		}
-		# rules and dargs are ordered by mc names
-		rule <- rule[names(mc)]
-		dargs <- lapply(mc, Deriv_, x, env, use.D, dsym, scache)
+		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache))
 		ize <- sapply(dargs, `==`, 0)
 		dargs <- dargs[!ize]
 		rule <- rule[!ize]

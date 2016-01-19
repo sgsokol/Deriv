@@ -195,6 +195,15 @@ test_that("composite function", {
    expect_equal(Deriv(g,"x"), function (x) -(2 * (sin(f(x))/x)))
 })
 
+# user function with non diff arguments
+ifel<-ifelse
+drule[["ifel"]]<-alist(test=NULL, yes=(test)*1, no=(!test)*1)
+rm(t)
+expect_equal(Deriv(~ifel(abs(t)<0.1, t**2, abs(t)), "t"), quote({
+    .e2 <- abs(t) < 0.1
+    (!.e2) * sign(t) + 2 * (t * .e2)
+}))
+drule[["ifel"]]<-NULL
 
 
 # test error reporting
