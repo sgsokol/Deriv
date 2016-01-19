@@ -396,8 +396,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 #browser()
 			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache=scache))
 		} else if(stch == "ifelse") {
-		  return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
-		                       Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
+			return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
+				Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
