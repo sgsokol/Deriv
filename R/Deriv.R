@@ -286,7 +286,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	is_index_expr <- is.call(st) && any(as.character(st[[1]]) == c("$", "[", "[["))
 	is_sub_x <- is_index_expr &&
 				format1(st[[2]]) == nm_x && format1(st[[3]]) == x
-	if (is.conuloch(st)) {
+	if (is.conuloch(st) || (is_index_expr && !is_sub_x)) {
 		return(0)
 	} else if (is.symbol(st) || (get_sub_x && is_index_expr)) {
 #browser()

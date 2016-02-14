@@ -148,6 +148,9 @@ test_that("probability densities", {
 })
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
+   expect_equal_deriv(a[1]*x, a[1])
+   expect_equal_deriv(a[[1]]*x, a[[1]])
+   expect_equal_deriv(a$b*x, a$b)
    expect_equal_deriv((a*x)**2, 2*(a^2*x))
    expect_equal_deriv((a*x)**n, a*n*(a*x)^(n-1))
    expect_equal_deriv(sin(a*x), a*cos(a*x))

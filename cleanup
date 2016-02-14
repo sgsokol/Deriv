@@ -1,0 +1,2 @@
+find \( -name '*.bck' -o -name '*.o' -o -name '*.so' -o -name .RData -o -name .Rhistory -o -name '*.dll' -o -name '*.a'  -o -name '*.mod' \) -exec rm -f {} \;
+find \( -name 'tmp' -o -name 'build' \) -exec rm -fr {} \;

@@ -1,3 +1,9 @@
+Version 3.6.2
+=============
+
+* 2016-02-19
+ - expressions with indexes other than variable of differentiation are considered as constants (fixes issue#8, reported by genwei007@github)
+
 Version 3.6.1
 =============
 
