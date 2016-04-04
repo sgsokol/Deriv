@@ -5,6 +5,8 @@ Version 3.6.2
  - expressions with indexes other than variable of differentiation are considered as constants (fixes issue#8, reported by genwei007@github)
  - functions that are not in drule and not depending on x, differentiate to 0
  - for x=NULL fixed its guess by excluding non differentiable arguments
+ - fixed presence of '...' in function argument list
+ - added rep() function for differentiation
 
 Version 3.6.1
 =============
