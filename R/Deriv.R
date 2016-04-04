@@ -191,9 +191,6 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		# primitive function
 		af <- formals(args(f))
 		x <- names(af)
-		if ("..." %in% x) {
-			stop(sprintf("Undefined list of arguments for %s()", fch))
-		}
 		rule <- drule[[fch]]
 		if (!is.null(rule)) {
 			# exclude arguments by which we cannot not differentiate from x
@@ -274,6 +271,13 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 	stch <- as.character(if (is.call(st)) st[[1]] else st)
 	# Make x scalar and wrap results in a c() call if length(x) > 1
+	iel=which("..." == x)
+	if (length(iel) > 0) {
+		# remove '...' from derivable arguments
+		x=as.list(x)
+		x[iel]=NULL
+		x=unlist(x)
+	}
 	nm_x <- names(x)
 	if (!is.null(nm_x))
 		nm_x[is.na(nm_x)] <- ""
@@ -403,6 +407,13 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		} else if(stch == "ifelse") {
 			return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
 				Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
+		} else if(stch == "rep") {
+#browser()
+			# 'x' argument is named or positional?
+			i=if ("x" %in% names(st)) "x" else 2
+			dst=st
+			dst[[i]]=Simplify(Deriv_(st[[i]], x, env, use.D, dsym, scache), scache=scache)
+			return(dst)
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
@@ -437,7 +448,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			return(Simplify(D(st, x), scache=scache))
 		}
 #if (stch == "myfun")
-#	browser()
+#browser()
 		# prepare replacement list
 		da <- try(args(stch), silent=TRUE)
 		if (inherits(da, "try-error")) {
