@@ -1,5 +1,6 @@
 #' @name Simplify
 #' @title Symbollic simplification of an expression or function
+#' @description Symbollic simplification of an expression or function
 #' @aliases Simplify simplifications Cache deCache
 #' @concept symbolic simplification
 # \usage{
@@ -49,6 +50,7 @@ Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 
 #' @name format1
 #' @title Wrapper for base::format() function
+#' @description Wrapper for base::format() function
 # \usage{
 # format1(expr)
 # }

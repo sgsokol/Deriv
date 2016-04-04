@@ -1,5 +1,6 @@
 #' @name Deriv
 #' @title Symbollic differentiation of an expression or function
+#' @description Symbollic differentiation of an expression or function
 #' @aliases Deriv drule
 #' @concept symbollic differentiation
 #' 
@@ -13,10 +14,9 @@
 #'   \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 #'  }
 #' @param x An optional character vector with variable name(s) with resptect to which
-#'  \code{f} must be differentiated. If not provided, x is guessed from
-#'  \code{names(formals(f))}, if \code{f} is a function, or from all variables in f
-#'  in other cases. If f is a primitive
-#'  function, x is set to \code{names(formals(args(f)))}
+#'  \code{f} must be differentiated. If not provided (i.e. x=NULL), x is
+#'  guessed either from\ code{names(formals(f))} (if \code{f} is a function)
+#'  or from all variables in f in other cases.
 #'  To differentiate expressions including components of lists or vectors, i.e. by expressions like
 #'  \code{p[1]}, \code{theta[["alpha"]]} or \code{theta$beta}, the vector of
 #'  variables \code{x}
@@ -173,7 +173,7 @@
 #' #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 #' }
 
-Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE) {
+Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE) {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
 	if (inherits(tf, "try-error")) {
@@ -189,15 +189,20 @@ Deriv <- function(f, x=if (is.function(f)) names(formals(f)) else all.vars(if (i
 		env <- .GlobalEnv
 	if (is.null(x)) {
 		# primitive function
-		fch <- deparse(substitute(f))
 		af <- formals(args(f))
 		x <- names(af)
 		if ("..." %in% x) {
 			stop(sprintf("Undefined list of arguments for %s()", fch))
 		}
 		rule <- drule[[fch]]
-		if (is.null(rule) && !fch %in% dlin) {
-			stop(sprintf("Undefined rule for '%s()' differentiation", fch))
+		if (!is.null(rule)) {
+			# exclude arguments by which we cannot not differentiate from x
+			x=as.list(x)
+			x[sapply(rule, is.null)] <- NULL
+			if (length(x) == 0) {
+				stop(sprintf("There is no differentiable argument in the function %s", fch))
+			}
+			x=unlist(x)
 		}
 		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D, dsym, scache)
 		if (cache.exp)
@@ -408,7 +413,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		if (is.null(rule)) {
 #browser()
 			# no derivative rule for this function
-			# try to get the body and differentiate it
+			# see if its arguments depend on x. If not, just send 0
+			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
+			if (all(sapply(dargs, is.numeric)) && all(dargs == 0)) {
+				return(0)
+			}
+			# otherwise try to get the body and differentiate it
 			ff <- get(stch, mode="function", envir=env)
 			bf <- body(ff)
 			if (is.null(bf)) {
