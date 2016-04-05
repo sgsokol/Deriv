@@ -7,7 +7,7 @@
 \usage{
 Deriv(f, x = if (is.function(f)) NULL else all.vars(if (is.character(f))
   parse(text = f) else f), env = if (is.function(f)) environment(f) else
-  parent.frame(), use.D = FALSE, cache.exp = TRUE)
+  parent.frame(), use.D = FALSE, cache.exp = TRUE, nderiv = NULL)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -44,7 +44,13 @@ final expression must be optimized with cached subexpressions.
 If enabled, repeated calculations are made only once and their
 results stored in cache variables which are then reused.}
 
-\item{...}{cf. help(alist)}
+\item{nderiv}{An optional integer vector of derivative orders to calculate.
+Default NULL value correspond to one differentiation. If length(nderiv)>1,
+the resulting expression is a list where each component corresponds to derivative order
+given in nderiv. Value 0 corresponds to the original function or expression  non
+differentiated. All values must be non negative. If the entries in nderiv
+are named, their names are used as names in the returned list. Otherwise
+the value of nderiv component is used as a name in the resulting list.}
 }
 \value{
 \itemize{
@@ -98,6 +104,8 @@ chain of derivatives.
      for use in optimization problems.
  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
      be differentiated (cf. examples section).
+ \item in case of multiple derivatives (e.g. gradient and hessian calculation),
+     caching can make calculation economies for both
 }
 
 Two work environments \code{drule} and \code{simplifications} are

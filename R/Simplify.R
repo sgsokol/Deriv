@@ -61,8 +61,14 @@ Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 #'  can split its output over several lines.
 format1 <- function(expr) {
 	res <- if (is.symbol(expr)) as.character(expr) else format(expr)
-	if (length(res) > 1) {
-		res <- paste(res, collapse="")
+	n <- length(res)
+	if (n > 1) {
+		if (res[1] == "{" && res[n] == "}" && n > 3) {
+			b <- paste(res[-c(1,n)], collapse="; ")
+			res <- paste("{", b, "}", collapse="")
+		} else {
+			res <- paste(res, collapse="")
+		}
 	}
 	return(res)
 }
@@ -645,6 +651,10 @@ is.assign <- function(e) {
 	# detect if it is an assignment operator
 	is.call(e) && (e[[1]] == as.symbol("<-") || e[[1]] == as.symbol("="))
 }
+is.subindex <- function(e) {
+	# is e a simple subindex expression?
+	is.call(e) && any(as.character(e[[1]]) == c("$", "[", "[[")) && (is.symbol(e[[2]]) && (is.symbol(e[[3]]) || is.conuloch(e[[3]])))
+}
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
 	# the sign of each term is determined by the nd$sminus logical item.
@@ -741,7 +751,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 			ispl <- strsplit(ind, ".", fixed=TRUE)[[1]]
 			indup <- paste(ispl[-length(ispl)], collapse=".")
 			stup <- eval(ind2call(indup))
-			if (is.assign(stup) && (as.character(stup[[2]]) == nme || natcompare(indup, idef) < 0))
+			if ((is.assign(stup) && (as.character(stup[[2]]) == nme || natcompare(indup, idef) < 0)))
 				next
 			ve[i] <- NA
 			do.call(`<-`, list(ind2call(ind), quote(as.symbol(nme))))
@@ -749,6 +759,9 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	}
 
 	suppressWarnings(ve <- ve[!is.na(ve)])
+	# skip simple subindex
+	isi <- sapply(ve, function(e) is.subindex(parse(text=e)[[1]]))
+	ve <- ve[!isi]
 	
 	ta <- table(ve)
 	ta <- ta[ta > 1]

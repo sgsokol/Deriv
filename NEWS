@@ -1,12 +1,14 @@
-Version 3.6.2
+Version 3.7.0
 =============
 
-* 2016-04-04
+* 2016-04-05
+ - added optional parameter nderiv for multiple derivatives
  - expressions with indexes other than variable of differentiation are considered as constants (fixes issue#8, reported by genwei007@github)
- - functions that are not in drule and not depending on x, differentiate to 0
- - for x=NULL fixed its guess by excluding non differentiable arguments
+ - functions that are not in drule table and not depending on x, differentiate to 0
+ - for x=NULL, fixed x guess by excluding non differentiable arguments
  - fixed presence of '...' in function argument list
  - added rep() function for differentiation
+ - in Cache(), simple subindex expressions are no more cached
 
 Version 3.6.1
 =============

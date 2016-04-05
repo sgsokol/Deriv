@@ -33,7 +33,13 @@
 #'  final expression must be optimized with cached subexpressions.
 #'  If enabled, repeated calculations are made only once and their
 #'  results stored in cache variables which are then reused.
-#' @param ... cf. help(alist)
+#' @param nderiv An optional integer vector of derivative orders to calculate.
+#'  Default NULL value correspond to one differentiation. If length(nderiv)>1,
+#'  the resulting expression is a list where each component corresponds to derivative order
+#'  given in nderiv. Value 0 corresponds to the original function or expression  non
+#'  differentiated. All values must be non negative. If the entries in nderiv
+#'  are named, their names are used as names in the returned list. Otherwise
+#'  the value of nderiv component is used as a name in the resulting list.
 #' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
@@ -83,6 +89,8 @@
 #'      for use in optimization problems.
 #'  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
 #'      be differentiated (cf. examples section).
+#'  \item in case of multiple derivatives (e.g. gradient and hessian calculation),
+#'      caching can make calculation economies for both
 #' }
 #' 
 #' Two work environments \code{drule} and \code{simplifications} are
@@ -173,7 +181,7 @@
 #' #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 #' }
 
-Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE) {
+Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL) {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
 	if (inherits(tf, "try-error")) {
@@ -201,70 +209,97 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 			}
 			x=unlist(x)
 		}
-		res <- Deriv_(as.call(c(as.symbol(fch), lapply(x, as.symbol))), x, env, use.D, dsym, scache)
-		if (cache.exp)
-			res <- Cache(Simplify(deCache(res), scache=scache))
-		return(as.function(c(af, res), envir=env))
+		fd <- as.call(c(as.symbol(fch), lapply(x, as.symbol)))
+		pack_res <- as.call(alist(as.function, c(af, res), envir=env))
+	} else {
+		x[] <- as.character(x)
+		if (any(nchar(x) == 0)) {
+			stop("Names in the second argument must not be empty")
+		}
+		fd <- NULL
 	}
-	x[] <- as.character(x)
-	if (any(nchar(x) == 0)) {
-		stop("Names in the second argument must not be empty")
-	}
-	if (is.character(f)) {
+	# prepare fd (a call to differentiate)
+	# and pack_res (a cal to evaluate and return as result)
+	if (!is.null(fd)) {
+		; # we are already set
+	} else if (is.character(f)) {
 		# f is to parse
-		res <- Deriv_(parse(text=f)[[1]], x, env, use.D, dsym, scache)
-		if (cache.exp)
-			res <- Cache(Simplify(deCache(res), scache=scache))
-		format1(res)
+		fd <- parse(text=f)[[1]]
+		pack_res <- as.call(alist(format1, res))
 	} else if (is.function(f)) {
 #browser()
 		b <- body(f)
 		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External") || b[[1]] == as.symbol(".Call"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
-				acall <- as.call(c(as.symbol(fch), arg))
-				res <- Deriv_(acall, x, env, use.D, dsym, scache)
-				if (cache.exp)
-					res <- Cache(Simplify(deCache(res), scache=scache))
-				as.function(c(formals(args(f)), res), envir=env)
+				fd <- as.call(c(as.symbol(fch), arg))
+				pack_res <- as.call(alist(as.function, c(formals(args(f)), res), envir=env))
 			} else {
 				stop(sprintf("Internal or external function '%s()' is not in derivative table.", fch))
 			}
 		} else {
-			res <- Deriv_(b, x, env, use.D, dsym, scache)
-			if (cache.exp)
-				res <- Cache(Simplify(deCache(res), scache=scache))
-			as.function(c(formals(f), res), envir=env)
+			fd <- b
+			pack_res <- as.call(alist(as.function, c(formals(f), res), envir=env))
 		}
 	} else if (is.expression(f)) {
-		res <- Deriv_(f[[1]], x, env, use.D, dsym, scache)
-		if (cache.exp)
-			res <- Cache(Simplify(deCache(res), scache=scache))
-		as.expression(res)
+		fd <- f[[1]]
+		pack_res <- as.call(alist(as.expression, res))
 	} else if (is.language(f)) {
 		if (is.call(f) && f[[1]] == as.symbol("~")) {
 			# rhs of the formula
-			res <- Deriv_(f[[length(f)]], x, env, use.D, dsym, scache)
-			if (cache.exp)
-				res <- Cache(Simplify(deCache(res), scache=scache))
-			res
+			fd <- f[[length(f)]]
+			pack_res <- quote(res)
 		} else {
 			# plain call derivation
-			res <- Deriv_(f, x, env, use.D, dsym, scache)
-			if (cache.exp)
-				res <- Cache(Simplify(deCache(res), scache=scache))
-			res
+			fd <- f
+			pack_res <- quote(res)
 		}
 	} else {
-		f <- substitute(f)
-		if (length(x) == 0)
-			x <- all.vars(f)
-		res <- Deriv_(f, x, env, use.D, dsym, scache)
-		if (cache.exp)
-			res <- Cache(Simplify(deCache(res), scache=scache))
-		res
+		fd <- substitute(f)
+		pack_res <- quote(res)
 		#stop("Invalid type of 'f' for differentiation")
 	}
+	res <- Deriv_(fd, x, env, use.D, dsym, scache)
+	if (!is.null(nderiv)) {
+		# multiple derivatives
+		# prepare their names
+		if (any(nderiv < 0)) {
+			stop("All entries in nderiv must be non negative")
+		}
+		nm_deriv <- names(nderiv)
+		nderiv <- as.integer(nderiv)
+		if (is.null(nm_deriv))
+			nm_deriv <- nderiv
+		iempt <- nchar(nm_deriv)==0
+		nm_deriv[iempt] <- seq_along(nderiv)[iempt]
+		# prepare list of repeated derivatives
+		lrep <- as.list(nderiv)
+		names(lrep) <- nm_deriv
+		# check if 0 is nderiv
+		iz <- nderiv==0
+		lrep[iz] <- list(fd)
+		# set first derivative
+		i <- nderiv==1
+		lrep[i] <- list(res)
+		
+		maxd <- max(nderiv)
+		for (ider in seq_len(maxd)) {
+			if (ider < 2)
+				next
+			res <- Deriv_(res, x, env, use.D, dsym, scache)
+			i <- ider == nderiv
+			lrep[i] <- list(res)
+		}
+		if (length(lrep) == 1) {
+			res <- lrep[[1]]
+		} else {
+			res <- as.call(c(quote(list), lrep))
+		}
+	}
+#browser()
+	if (cache.exp)
+		res <- Cache(Simplify(deCache(res), scache=scache))
+	eval(pack_res)
 }
 
 # workhorse function doing the main work of differentiation
