@@ -180,7 +180,7 @@ Simplify_ <- function(expr, scache) {
 #browser()
 	# fnd will be the name "num" or "den" where the first factor
 	# will be taken. ond is the "other" name (if fnd=="num", then ond == "den")
-	# we select the cadidate which is most repeated provided that it
+	# we select the candidate which is most repeated provided that it
 	# has at least one numeric power occurance.
 	taa <- unlist(ta)
 	ota <- order(taa, decreasing=TRUE)
