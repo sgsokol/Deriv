@@ -60,11 +60,11 @@ Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 #' @return A character vector of length 1 contrary to base::format() which
 #'  can split its output over several lines.
 format1 <- function(expr) {
-	res <- if (is.symbol(expr)) as.character(expr) else format(expr)
+	res <- if (is.symbol(expr)) as.character(expr) else if (is.call(expr) && expr[[1]]==as.symbol("{")) sapply(as.list(expr), format1) else format(expr)
 	n <- length(res)
 	if (n > 1) {
-		if (res[1] == "{" && res[n] == "}" && n > 3) {
-			b <- paste(res[-c(1,n)], collapse="; ")
+		if (res[1] == "{" && n > 2) {
+			b <- paste(res[-1], collapse="; ")
 			res <- paste("{", b, "}", collapse="")
 		} else {
 			res <- paste(res, collapse="")
