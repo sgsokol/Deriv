@@ -359,7 +359,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		if (stch == "{") {
 #browser()
 			# AD differentiation (may be with many x)
-			res=list(st[[1]])
+			res <- list(st[[1]])
 			# initiate dsym[[x[ix]]] or dsym[[nm_x[ix]}}[[x[ix]]]
 			for (ix in seq_along(x)) {
 				if (get_sub_x[ix]) {
@@ -371,8 +371,9 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 				}
 			}
 			# collect defined var names (to avoid redifferentiation)
-			defs <- sapply(as.list(st)[-1], function(e) if (is.assign(e)) as.character(e[[2]]) else "")
-			alva=list()
+			defs <- sapply(args, function(e) if (is.assign(e)) as.character(e[[2]]) else "")
+#			alva <- list()
+			last_res <- list()
 			for (iarg in seq_along(args)) {
 #browser()
 				a <- args[[iarg]]
@@ -380,14 +381,11 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
 					# put in scache the assignement
-					Simplify_(a, scache)
-					res <- append(res, a)
-					alva <- append(alva, list(all.vars(a)))
 					ach <- as.character(a[[2]])
 					for (ix in seq_along(x)) {
 						d_ach <- paste(".", ach, "_", x[ix], sep="")
 						d_a <- as.symbol(d_ach)
-						if (any(d_a == defs)) {
+						if (any(d_ach == defs)) {
 							# already differentiated in previous calls
 							if (get_sub_x[ix])
 								dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- d_a
@@ -396,14 +394,14 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 							next
 						}
 						de_a <- Deriv_(a[[3]], x[ix], env, use.D, dsym, scache)
+						if (get_sub_x[ix])
+							dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- de_a
+						else
+							dsym$l[[x[ix]]][[ach]] <- de_a
 						if (de_a == 0) {
 							if (iarg < length(args))
 								next
 						} else if (!is.call(de_a)) {
-							if (get_sub_x[ix])
-								dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- de_a
-							else
-								dsym$l[[x[ix]]][[ach]] <- de_a
 							if (iarg < length(args))
 								next
 						}
@@ -412,9 +410,18 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 						else
 							dsym$l[[x[ix]]][[ach]] <- d_a
 						res <- append(res, call("<-", d_a, de_a))
-						alva <- append(alva, list(c(d_ach, all.vars(de_a))))
+#						alva <- append(alva, list(c(d_ach, all.vars(de_a))))
 						# store it in scache too
 						#scache$l[[format1(de_a)]] <- as.symbol(d_a)
+						if (iarg == length(args))
+							last_res[[ix]] <- d_a
+					}
+					Simplify_(a, scache)
+					res <- append(res, a)
+#					alva <- append(alva, list(all.vars(a)))
+					if (iarg == length(args)) {
+						names(last_res) <- ifelse(get_sub_x, paste(nm_x, x, sep="_"), x)
+						res <- append(res, as.call(c(as.symbol("c"), last_res)))
 					}
 				} else {
 					de_a <- lapply(seq_along(x), function(ix) Deriv_(a, x[ix], env, use.D, dsym, scache))
@@ -427,12 +434,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 				}
 			}
 #browser()
-			if (length(alva) == length(res)) {
-				i <- toporder(alva[-length(alva)]) # the last expression must stay the last
-			} else {
-				i <- toporder(alva)
-			}
-			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
+#			if (length(alva) == length(res)) {
+#				i <- toporder(alva[-length(alva)]) # the last expression must stay the last
+#			} else {
+#				i <- toporder(alva)
+#			}
+#			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
 			return(Simplify(as.call(res)))
 		} else if (is.uminus(st)) {
 			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache=scache))
