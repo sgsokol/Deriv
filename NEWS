@@ -1,3 +1,9 @@
+Version 3.8.0
+=============
+
+* 2016-11-15
+ - Auxiliary variable reuse is now allowed in function definition
+
 Version 3.7.0
 =============
 
