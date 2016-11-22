@@ -127,9 +127,11 @@ Simplify_ <- function(expr, scache) {
 	a <- expr[[2]]
 	b <- expr[[3]]
 	
-	if (a == 0) {
+	if (a == 0 || (is.call(a) && as.character(a[[1]]) %in% c("rep", "rep.int", "rep_len") && a[[2]] == 0)) {
+#browser()
 		return(if (add) b else call("-", b))
-	} else if (b == 0) {
+	} else if (b == 0 || (is.call(b) && as.character(b[[1]]) %in% c("rep", "rep.int", "rep_len") && b[[2]] == 0)) {
+#browser()
 		return(a)
 	} else if (add && is.uminus(a) && !is.uminus(b)) {
 		a <- b
@@ -230,8 +232,7 @@ Simplify_ <- function(expr, scache) {
 			i_lc <- ilc[[cnd]][iit]
 			i_nd <- ind[[cnd]][iit]
 			fa_nd[[cnd]]$b <- append(fa_nd[[cnd]]$b, lc[[i_lc[1]]][[cnd]]$b[i_nd[1]])
-			fa_nd[[cnd]]$p <- append(fa_nd[[cnd]]$p,
-p_fa)
+			fa_nd[[cnd]]$p <- append(fa_nd[[cnd]]$p, p_fa)
 			# decrease p in the lc terms
 			for (i in seq_along(i_lc)) {
 				lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]] <- Simplify_(call("-", lc[[i_lc[i]]][[cnd]]$p[[i_nd[i]]], p_fa), scache)
@@ -274,17 +275,19 @@ p_fa)
 		b <- b[[2]]
 	}
 #browser()
-	if (a == 0 || (b == 0 && !div)) {
+	if (identical(a, 0) || (is.call(a) && as.character(a[[1]]) %in% c("rep", "rep.int", "rep_len") && identical(a[[2]], 0)) || (identical(b, 0) || (is.call(b) && as.character(b[[1]]) %in% c("rep", "rep.int", "rep_len") && identical(b[[2]], 0)) && !div)) {
+#	if (a == 0 || (b == 0 && !div)) {
+#browser()
 		0
-	} else if (a == 1 && !div) {
+	} else if (identical(a, 1) && !div) {
 		if (sminus) call("-", b) else b
-	} else if (b == 1) {
+	} else if (identical(b, 1)) {
 		if (sminus) call("-", a) else a
 	} else if (div && identical(a, b)) {
 		if (sminus) -1 else 1
 	} else {
 #browser()
-		# get numerator and denominator for a and b than combine them
+		# get numerator and denominator for a and b then combine them
 		nd_a <- Numden(a)
 		nd_b <- Numden(b)
 		if (div) {
@@ -314,12 +317,12 @@ p_fa)
 			fa$den <- nd_a$fa$den*nd_b$fa$den
 		}
 		res <- fa$num/fa$den
-		if (as.integer(res) == res) {
+		if (all(as.integer(res) == res)) {
 			fa$num <- res
 			fa$den <- 1
 		} else if (fa$den != 1) {
 			res <- fa$den/fa$num
-			if (as.integer(res) == res) {
+			if (all(as.integer(res) == res)) {
 				fa$num <- 1
 				fa$den <- res
 			}
@@ -563,6 +566,8 @@ Numden <- function(expr) {
 	# "sminus" is logical for applying or not "-" to the whole expression
 	# Each sublist regroups the language expressions which are not products neither
 	# divisions. The terms are decomposed in b^p sublists
+#print(expr)
+#browser()
 	if (is.uminus(expr)) {
 		a=Numden(expr[[2]])
 		a$sminus <- !a$sminus
@@ -574,7 +579,7 @@ Numden <- function(expr) {
 			sminus=FALSE,
 			fa=list(num=1, den=1))
 	} else if (is.numeric(expr)) {
-		sminus <- expr < 0
+		sminus <- length(expr) == 1 && expr < 0
 		list(fa=list(num=if (sminus) -expr else expr, den=1),
 			sminus=sminus)
 	} else if (is.call(expr)) {
@@ -718,7 +723,7 @@ Leaves <- function(st, ind="1", res=new.env()) {
 # convert index calculated by Leaves() to a call like st[[i2]][[i3]]...
 # the first two chars "1." are striped out
 ind2call <- function(ind, st="st")
-	if (ind == "1") as.symbol(st) else parse(text=sprintf("%s[[%s]]", st, gsub("\\.", "]][[", substring(ind, 3))))[[1]]
+	if (ind == "1") as.symbol(st) else parse(text=sprintf("%s[[%s]]", st, gsub(".", "]][[", substring(ind, 3), fixed=TRUE)))[[1]]
 
 # replace repeated subexpressions by cached values
 # prefix is used to form auxiliary variable
@@ -884,7 +889,7 @@ nd2expr <- function(nd, scache, sminus=NULL) {
 	}
 	# put numeric factor at first place
 	fa=nd$fa
-	if (fa$num != 1 && fa$den != 1) {
+	if (any(fa$num != 1) && any(fa$den != 1)) {
 		# add to both num. and denom.
 		if (!is.null(eprod$den)) {
 			expr[[2]] <- call("*", fa$num, expr[[2]])
@@ -892,14 +897,14 @@ nd2expr <- function(nd, scache, sminus=NULL) {
 		} else {
 			expr <- call("/", call("*", fa$num, expr), fa$den)
 		}
-	} else if (fa$num != 1) {
+	} else if (any(fa$num != 1)) {
 		if (is.call(expr) && expr[[1]] == as.symbol("/") && expr[[2]] == 1)
 			expr[[2]] <- fa$num
 		else if (expr == 1)
 			expr <- fa$num
 		else
 			expr <- call("*", fa$num, expr)
-	} else if (fa$den != 1) {
+	} else if (any(fa$den != 1)) {
 		if (is.call(expr) && expr[[1]] == as.symbol("/"))
 			expr[[3]] <- call("*", fa$den, expr[[3]])
 		else

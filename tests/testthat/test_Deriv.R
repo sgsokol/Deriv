@@ -23,7 +23,10 @@ num_test_deriv <- function(fun, larg, narg=1, h=1.e-5, tolerance=2000*h^2) {
    nm_x=names(larg)[narg]
    sym_larg[[narg]]=as.symbol(nm_x)
    flang=as.symbol(fun)
-   dsym=do.call(as.function(c(sym_larg, Deriv(as.call(c(flang, sym_larg)), nm_x))), larg, quote=TRUE)
+   dsym=try(do.call(as.function(c(sym_larg, list(Deriv(as.call(c(flang, sym_larg)), nm_x)))), larg, quote=TRUE))
+   if (inherits(dsym, "try-error")) {
+      stop(sprintf("failed to calculate symbolic derivative of '%s'", format1(as.call(c(flang, sym_larg)))))
+   }
 #cat(sprintf("comparing %s by %s\n", format1(as.call(c(flang, larg))), nm_x))
    expect_equal(dnum, dsym, tolerance=tolerance, info=sprintf("%s by %s", format1(as.call(c(flang, larg))), nm_x))
 }
@@ -146,6 +149,7 @@ test_that("probability densities", {
    expect_equal_deriv(dbinom(5,3,x), 3 * ((3 - 5 * x) * dbinom(5, 2, x)/(1 - x)^2))
    expect_equal_deriv(dnorm(x, m=0.5), -(dnorm(x, 0.5, 1) * (x - 0.5)))
 })
+a=0.1
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
    expect_equal_deriv(a[1]*x, a[1])
@@ -184,11 +188,13 @@ f1 <- Deriv(f, cache.exp=FALSE)
 f2 <- Deriv(f1, cache.exp=FALSE)
 f3 <- Deriv(f2, cache.exp=FALSE)
 a=seq(0.01, 2, len=11)
-
 test_that("expression cache test", {
    expect_equal_deriv(exp(-0.5*(x-m)^2/s^2)/s/sqrt(2*pi), -(exp(-(0.5 * ((x - m)^2/s^2))) * (x - m)/(s^3 * sqrt(2 * pi))))
    expect_equal(g2n(x, m, s), g2c(x, m, s))
    expect_equal(f3(a), f3c(a))
+})
+test_that("reused variables", { # (issue #12)
+   expect_equal(Deriv(~{sum=x; sum=sum*(1+x); sum=sum*y}, c("x", "y")), quote(c(x = y * (1 + 2 * x), y = x * (1 + x))))
 })
 
 # composite function differentiation/caching (issue #6)
@@ -223,7 +229,16 @@ test_that("central differences", {
       rule <- drule[[nm_f]]
       larg <- rule
       narg <- length(larg)
-      larg[] <- runif(narg)
+      if (nm_f == "rep.int") {
+         larg["x"]=pi
+         larg["times"]=2
+      } else if (nm_f == "rep.int") {
+         larg["x"]=pi
+         larg["length.out"]=2
+      } else {
+         larg[] <- runif(narg)
+      }
+      
       # possible logical parameters are swithed on/off
       fargs=formals(nm_f)
       ilo=sapply(fargs, is.logical)
@@ -233,7 +248,10 @@ test_that("central differences", {
          if (is.null(rule[[iarg]]))
             next
          if (is.null(fargs) || !any(ilo)) {
-            suppressWarnings(num_test_deriv(nm_f, larg, narg=iarg))
+            tmp=try(num_test_deriv(nm_f, larg, narg=iarg), silent=TRUE)
+            if (inherits(tmp, "try-error")) {
+               stop(sprintf("Failed num. deriv. on '%s(%s)'", nm_f, paste(names(larg), larg, sep="=", collapse=", ")))
+            }
          } else {
             apply(logrid, 1, function(lv) {
                lolarg=larg

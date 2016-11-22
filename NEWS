@@ -2,7 +2,16 @@ Version 3.8.0
 =============
 
 * 2016-11-15
- - Auxiliary variable reuse is now allowed in function definition
+ - variable reassignment is now allowed in the body of differentiated function (issue #12)
+ - added new optional parameter 'combine' which can be helpful in multivariate
+   context
+ - added rep.int() and rep_len() to the table of derivative definitions
+ - added list() to the table of linear functions
+ - fixed format1() for '{...}' language expression
+ - in the manual, added NB3 remark about possible vector length issues
+ - fixed some simplification cases when a constant numerical vector is a part of
+   the expression
+ - fixed automatic numerical diff. tests for rep.int() and rep_len()
 
 Version 3.7.0
 =============

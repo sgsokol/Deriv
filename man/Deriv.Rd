@@ -7,7 +7,8 @@
 \usage{
 Deriv(f, x = if (is.function(f)) NULL else all.vars(if (is.character(f))
   parse(text = f) else f), env = if (is.function(f)) environment(f) else
-  parent.frame(), use.D = FALSE, cache.exp = TRUE, nderiv = NULL)
+  parent.frame(), use.D = FALSE, cache.exp = TRUE, nderiv = NULL,
+  combine = "c")
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -51,6 +52,12 @@ given in nderiv. Value 0 corresponds to the original function or expression  non
 differentiated. All values must be non negative. If the entries in nderiv
 are named, their names are used as names in the returned list. Otherwise
 the value of nderiv component is used as a name in the resulting list.}
+
+\item{combine}{An optional character scalar, it names a function to combine
+partial derivatives. Default value is "c" but other functions can be
+used, e.g. "cbind" (cf. Details, NB3), "list" or user defined ones. It must
+accept any number of arguments or at least the same number of arguments as
+there are items in \code{x}.}
 }
 \value{
 \itemize{
@@ -65,7 +72,7 @@ Symbollic differentiation of an expression or function
 }
 \details{
 R already contains two differentiation functions: D and deriv. D does
-simple univariate differentiation.  "deriv" uses D do to multivariate
+simple univariate differentiation.  "deriv" uses D to do multivariate
 differentiation.  The output of "D" is an expression, whereas the output of
 "deriv" can be an executable function.
 
@@ -117,12 +124,36 @@ To add your own derivative rule for a function called say \code{sinpi(x)} calcul
 Here, "x" stands for the first and unique argument in \code{sinpi()} definition. For a function that might have more than one argument,
 e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with a named rule
 per argument. See \code{drule$log} for an example to follow.
-After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
+After adding \code{sinpi} you can differentiate expressions like
+\code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 
-NB. In \code{abs()} and \code{sign()} function, singularity treatment at point 0 is left to user's care.
+NB. In \code{abs()} and \code{sign()} function, singularity treatment
+    at point 0 is left to user's care.
+    For example, if you need NA at singular points, you can define the following:
+    \code{drule[["abs"]] <- alist(x=ifelse(x==0, NA, sign(x)))}
+    \code{drule[["sign"]] <- alist(x=ifelse(x==0, NA, 0))}
 
 NB2. In Bessel functions, derivatives are calculated only by the first argument,
      not by the \code{nu} argument which is supposed to be constant.
+
+NB3. There is a side effect with vector length. E.g. in 
+     \code{Deriv(~a+b*x, c("a", "b"))} the result is \code{c(a = 1, b = x)}.
+     To avoid the difference in lengths of a and b components (when x is a vector),
+     one can use an optional parameter \code{combine}
+     \code{Deriv(~a+b*x, c("a", "b"), combine="cbind")} which gives
+     \code{cbind(a = 1, b = x)} producing a two column matrix which is
+     probably the desired result here.
+     \cr Another example illustrating a side effect is a plain linear
+     regression case and its Hessian:
+     \code{Deriv(~sum((a+b*x - y)**2), c("a", "b"), n=c(hessian=2)}
+     producing just a constant \code{2} for double differentiation by \code{a}
+     instead of expected result \code{2*length(x)}. It comes from a simplification of
+     an expression \code{sum(2)} where the constant is not repeated as many times
+     as length(x) would require it. Here, using the same trick
+     with \code{combine="cbind"} would not help as all 4 derivatives are just scalars.
+     Instead, one should modify the previous call to explicitly use a constant vector
+     of appropriate length:
+     \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
 }
 \examples{
 
@@ -196,7 +227,7 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 }
 }
 \author{
-Andrew Clausen (original version) and Serguei Sokol (maintainer)
+Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 }
 \concept{
 symbollic differentiation

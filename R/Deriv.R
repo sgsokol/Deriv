@@ -40,6 +40,11 @@
 #'  differentiated. All values must be non negative. If the entries in nderiv
 #'  are named, their names are used as names in the returned list. Otherwise
 #'  the value of nderiv component is used as a name in the resulting list.
+#' @param combine An optional character scalar, it names a function to combine
+#'  partial derivatives. Default value is "c" but other functions can be
+#'  used, e.g. "cbind" (cf. Details, NB3), "list" or user defined ones. It must
+#'  accept any number of arguments or at least the same number of arguments as
+#'  there are items in \code{x}.
 #' 
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
@@ -50,7 +55,7 @@
 #'
 #' @details
 #' R already contains two differentiation functions: D and deriv. D does
-#' simple univariate differentiation.  "deriv" uses D do to multivariate
+#' simple univariate differentiation.  "deriv" uses D to do multivariate
 #' differentiation.  The output of "D" is an expression, whereas the output of
 #' "deriv" can be an executable function.
 #' 
@@ -102,14 +107,38 @@
 #' Here, "x" stands for the first and unique argument in \code{sinpi()} definition. For a function that might have more than one argument,
 #' e.g. \code{log(x, base=exp(1))}, the drule entry must be a list with a named rule
 #' per argument. See \code{drule$log} for an example to follow.
-#' After adding \code{sinpi} you can differentiate expressions like \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
+#' After adding \code{sinpi} you can differentiate expressions like
+#' \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 #' 
-#' NB. In \code{abs()} and \code{sign()} function, singularity treatment at point 0 is left to user's care.
+#' NB. In \code{abs()} and \code{sign()} function, singularity treatment
+#'     at point 0 is left to user's care.
+#'     For example, if you need NA at singular points, you can define the following:
+#'     \code{drule[["abs"]] <- alist(x=ifelse(x==0, NA, sign(x)))}
+#'     \code{drule[["sign"]] <- alist(x=ifelse(x==0, NA, 0))}
 #' 
 #' NB2. In Bessel functions, derivatives are calculated only by the first argument,
 #'      not by the \code{nu} argument which is supposed to be constant.
-#' 
-#' @author Andrew Clausen (original version) and Serguei Sokol (maintainer)
+#'
+#' NB3. There is a side effect with vector length. E.g. in 
+#'      \code{Deriv(~a+b*x, c("a", "b"))} the result is \code{c(a = 1, b = x)}.
+#'      To avoid the difference in lengths of a and b components (when x is a vector),
+#'      one can use an optional parameter \code{combine}
+#'      \code{Deriv(~a+b*x, c("a", "b"), combine="cbind")} which gives
+#'      \code{cbind(a = 1, b = x)} producing a two column matrix which is
+#'      probably the desired result here.
+#'      \cr Another example illustrating a side effect is a plain linear
+#'      regression case and its Hessian:
+#'      \code{Deriv(~sum((a+b*x - y)**2), c("a", "b"), n=c(hessian=2)}
+#'      producing just a constant \code{2} for double differentiation by \code{a}
+#'      instead of expected result \code{2*length(x)}. It comes from a simplification of
+#'      an expression \code{sum(2)} where the constant is not repeated as many times
+#'      as length(x) would require it. Here, using the same trick
+#'      with \code{combine="cbind"} would not help as all 4 derivatives are just scalars.
+#'      Instead, one should modify the previous call to explicitly use a constant vector
+#'      of appropriate length:
+#'      \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
+#'
+#' @author Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}
@@ -181,7 +210,7 @@
 #' #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 #' }
 
-Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL) {
+Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c") {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
 	if (inherits(tf, "try-error")) {
@@ -259,7 +288,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		pack_res <- quote(res)
 		#stop("Invalid type of 'f' for differentiation")
 	}
-	res <- Deriv_(fd, x, env, use.D, dsym, scache)
+	res <- Deriv_(fd, x, env, use.D, dsym, scache, combine)
 	if (!is.null(nderiv)) {
 		# multiple derivatives
 		# prepare their names
@@ -286,7 +315,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		for (ider in seq_len(maxd)) {
 			if (ider < 2)
 				next
-			res <- Deriv_(res, x, env, use.D, dsym, scache)
+			res <- Deriv_(res, x, env, use.D, dsym, scache, combine)
 			i <- ider == nderiv
 			lrep[i] <- list(res)
 		}
@@ -303,7 +332,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 }
 
 # workhorse function doing the main work of differentiation
-Deriv_ <- function(st, x, env, use.D, dsym, scache) {
+Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	stch <- as.character(if (is.call(st)) st[[1]] else st)
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	iel=which("..." == x)
@@ -318,12 +347,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		nm_x[is.na(nm_x)] <- ""
 	else
 		nm_x <- rep("", length(x))
-#browser()
 	if (length(x) > 1 && stch != "{") {
+#browser()
 		# many variables => recursive call on single name
-		res <- lapply(seq_along(x), function(ix) Deriv_(st, x[ix], env, use.D, dsym, scache))
+		res <- lapply(seq_along(x), function(ix) Deriv_(st, x[ix], env, use.D, dsym, scache, combine))
 		names(res) <- if (is.null(nm_x)) x else ifelse(is.na(nm_x) | nchar(nm_x) == 0, x, paste(nm_x, x, sep="_"));
-		return(as.call(c(as.symbol("c"), res)))
+		return(as.call(c(as.symbol(combine), res)))
 	}
 	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
 	get_sub_x <- !(is.null(nm_x) | nchar(nm_x) == 0 | is.na(nm_x))
@@ -449,7 +478,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 		} else if(stch == "ifelse") {
 			return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
 				Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
-		} else if(stch == "rep") {
+		} else if (stch == "rep") {
 #browser()
 			# 'x' argument is named or positional?
 			i=if ("x" %in% names(st)) "x" else 2
@@ -458,7 +487,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			return(dst)
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache)
+				else
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
 					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
 		}
@@ -498,7 +528,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 			# may be it is a user defined one?
 			da <- args(get(stch, mode="function", envir=env))
 		}
-		mc <- as.list(match.call(definition=da, call=st))[-1]
+		mc <- as.list(match.call(definition=da, call=st, expand.dots=FALSE))[-1]
 		da <- as.list(da)
 		da <- da[-length(da)] # all declared arguments with default values
 		aa <- modifyList(da, mc) # all arguments with actual values
@@ -549,7 +579,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache) {
 drule <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
-dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind")
+dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind", "list")
 
 # rule table
 # arithmetics
@@ -588,6 +618,8 @@ drule[["atanh"]] <- alist(x=1/(1-x^2))
 # sign depending functions
 drule[["abs"]] <- alist(x=sign(x))
 drule[["sign"]] <- alist(x=0)
+#drule[["abs"]] <- alist(x=ifelse(x==0, NA, sign(x)))
+#drule[["sign"]] <- alist(x=ifelse(x==0, NA, 0))
 # special functions
 drule[["besselI"]] <- alist(x=(if (nu == 0) besselI(x, 1, expon.scaled) else 0.5*(besselI(x, nu-1, expon.scaled) + besselI(x, nu+1, expon.scaled)))-if (expon.scaled) besselI(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
 drule[["besselK"]] <- alist(x=(if (nu == 0) -besselK(x, 1, expon.scaled) else -0.5*(besselK(x, nu-1, expon.scaled) + besselK(x, nu+1, expon.scaled)))+if (expon.scaled) besselK(x, nu, TRUE) else 0, nu=NULL, expon.scaled=NULL)
@@ -607,3 +639,7 @@ drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
 drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
+# data mangling
+#drule[["rep"]] <- alist(x=rep(1, ...)) # cannot handle '...' yet
+drule[["rep.int"]] <- alist(x=rep.int(1, times), times=NULL)
+drule[["rep_len"]] <- alist(x=rep_len(1, length.out), length.out=NULL)
