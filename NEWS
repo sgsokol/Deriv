@@ -1,7 +1,7 @@
 Version 3.8.0
 =============
 
-* 2016-11-15
+* 2016-11-22
  - variable reassignment is now allowed in the body of differentiated function (issue #12)
  - added new optional parameter 'combine' which can be helpful in multivariate
    context
