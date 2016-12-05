@@ -1,3 +1,9 @@
+Version 3.8.1
+=============
+
+* 2016-12-??
+ - fixed use of argument 'combine' (which was ignored in some cases)
+ 
 Version 3.8.0
 =============
 
