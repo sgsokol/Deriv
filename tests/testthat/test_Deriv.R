@@ -69,7 +69,7 @@ expect_equal_deriv <- function(t, r, nmvar="x") {
       numder=(f2-f1)/h/2
       refder=sapply(x, function(val) eval(ref, list(x=val)))
       i=is.finite(refder) & is.finite(numder)
-      expect_more_than(sum(i), 0, label=sprintf("length of central diff for %s", format1(test)))
+      expect_gt(sum(i), 0, label=sprintf("length of central diff for %s", format1(test)))
       expect_equal(numder[i], refder[i], tolerance=5.e-8, label=sprintf("Central diff. of '%s'", format1(test)), expected.label=sprintf("'%s'", format1(ref)))
    }
 }
@@ -297,4 +297,12 @@ test_that("doc examples", {
         (x - theta$m)^2/(2 * theta$sd)^2))))
 })
 drule[["myfun"]] <- NULL
+
+# test renaming primitive function (issue #10)
+f=cos
+g = function(f) Deriv(f)
+test_that("renaming primitive", {
+   expect_identical(g(f), Deriv(cos))
+})
+g(cos)
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

@@ -213,6 +213,10 @@
 Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c") {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
+	if (is.primitive(f)) {
+		# get the true function name (may be after renaming in caller env like f=cos)
+		fch=sub('^\\.Primitive\\("(.+)"\\)', "\\1", format1(f))
+	}
 	if (inherits(tf, "try-error")) {
 		f <- substitute(f)
 	}
