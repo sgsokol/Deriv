@@ -1,9 +1,10 @@
 Version 3.8.1
 =============
 
-* 2016-12-??
+* 2017-06-13
  - fixed use of argument 'combine' (which was ignored in some cases)
- 
+ - added proceeding of renamed primitive functions (e.g. f=cos; Deriv(f)) (issue #10)
+
 Version 3.8.0
 =============
 
