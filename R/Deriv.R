@@ -433,7 +433,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 							dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- de_a
 						else
 							dsym$l[[x[ix]]][[ach]] <- de_a
-						if (de_a == 0) {
+						if (identical(de_a, 0)) {
 							if (iarg < length(args))
 								next
 						} else if (!is.call(de_a)) {
@@ -504,7 +504,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			# no derivative rule for this function
 			# see if its arguments depend on x. If not, just send 0
 			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
-			if (all(sapply(dargs, is.numeric)) && all(dargs == 0)) {
+			if (all(sapply(dargs, identical, 0))) {
 				return(0)
 			}
 			# otherwise try to get the body and differentiate it
