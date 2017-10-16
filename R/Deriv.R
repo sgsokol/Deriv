@@ -550,7 +550,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			return(0)
 		}
 		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache))
-		ize <- sapply(dargs, `==`, 0)
+		ize <- sapply(dargs, identical, 0)
 		dargs <- dargs[!ize]
 		rule <- rule[!ize]
 		if (length(rule) == 0) {
@@ -558,8 +558,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		}
 		
 		# apply chain rule where needed
-		ione <- sapply(dargs, `==`, 1)
-		imone <- sapply(dargs, `==`, -1)
+		ione <- sapply(dargs, identical, 1)
+		imone <- sapply(dargs, identical, -1)
 		for (i in seq_along(rule)[!(ione|imone)]) {
 			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache=scache)
 		}
