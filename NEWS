@@ -1,3 +1,9 @@
+Version 3.8.2
+=============
+
+* 2017-10-16
+ - fixed mixing part of returned function body and its arguments when the result is a constant vector of length > 1 (issue #14)
+
 Version 3.8.1
 =============
 

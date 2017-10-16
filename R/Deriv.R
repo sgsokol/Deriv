@@ -243,7 +243,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 			x=unlist(x)
 		}
 		fd <- as.call(c(as.symbol(fch), lapply(x, as.symbol)))
-		pack_res <- as.call(alist(as.function, c(af, res), envir=env))
+		pack_res <- as.call(alist(as.function, c(af, list(res)), envir=env))
 	} else {
 		x[] <- as.character(x)
 		if (any(nchar(x) == 0)) {
@@ -266,13 +266,13 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 			if (fch %in% dlin || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
 				fd <- as.call(c(as.symbol(fch), arg))
-				pack_res <- as.call(alist(as.function, c(formals(args(f)), res), envir=env))
+				pack_res <- as.call(alist(as.function, c(formals(args(f)), list(res)), envir=env))
 			} else {
 				stop(sprintf("Internal or external function '%s()' is not in derivative table.", fch))
 			}
 		} else {
 			fd <- b
-			pack_res <- as.call(alist(as.function, c(formals(f), res), envir=env))
+			pack_res <- as.call(alist(as.function, c(formals(f), list(res)), envir=env))
 		}
 	} else if (is.expression(f)) {
 		fd <- f[[1]]

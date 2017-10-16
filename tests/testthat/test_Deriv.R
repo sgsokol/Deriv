@@ -306,3 +306,12 @@ test_that("renaming primitive", {
 })
 g(cos)
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)
+
+# test returning a constant vector of length > 1  (issue #14)
+f <- function(x, y) x + y
+res=c(x=1, y=1)
+fd=as.function(alist(x=, y=, res))
+body(fd)=res
+test_that("multivar diff", {
+   expect_identical(Deriv(f), fd)
+})
