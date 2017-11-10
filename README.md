@@ -13,7 +13,7 @@ completed.
 Main new features include:
  - new derivative engine allowing simple syntaxe for differentiation rules;
  - many new functions are added to the rule table;
- - custom differention rules can be added by user;
+ - custom differentiation rules can be added by user;
  - automatic differentiation (AD) of a code with multiple assignement operators;
  - when taking derivative of a function Deriv() returns a function too. The later can be called with the same arguments as the original function;
  - can differentiate by variables stored in vectors or lists, e.g. `param$theta` or `x[1]`, `x[2]` etc.
