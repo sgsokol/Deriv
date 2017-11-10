@@ -12,9 +12,12 @@ completed.
 
 Main new features include:
  - new derivative engine allowing simple syntaxe for differentiation rules;
+ - many new functions are added to the rule table;
+ - custom differention rules can be added by user;
  - automatic differentiation (AD) of a code with multiple assignement operators;
- - many new functions are added to rule table;
- - possible simplifications are extended to rational expressions and factorizations. Expression caching is enabled by default;
+ - when taking derivative of a function Deriv() returns a function too. The later can be called with the same arguments as the original function;
+ - simplifications are extended to rational expressions and factorizations;
+ - expression caching is enabled by default;
  - Deriv() is made the only entry point for all types of entries:
    * expression
    * language
