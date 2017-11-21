@@ -13,7 +13,7 @@ R's existing functions have several limitations:
  \item the derivatives table can't be modified at runtime, and is only available
 in C.
  \item function cannot substitute function calls.  eg:
-      
+
       \code{f <- function(x, y) x + y; deriv(~f(x, x^2), "x")}
 }
 
@@ -32,7 +32,7 @@ The advantages of this package include:
       chain of derivatives.
    }
  \item It's easy to add custom entries to the derivatives table, e.g.
-      
+
       \code{drule[["cos"]] <- alist(x=-sin(x))}
  \item The output can be an executable function, which makes it suitable for use in
 optimization problems.
@@ -43,8 +43,8 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 3.8.2\cr
-Date: \tab 2017-10-16\cr
+Version: \tab 3.8.3\cr
+Date: \tab 2017-11-21\cr
 License: \tab GPL (>= 3)\cr
 }
 Two main functions are Deriv() for differentiating
