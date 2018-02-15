@@ -3,7 +3,7 @@
 #' @description Symbollic differentiation of an expression or function
 #' @aliases Deriv drule
 #' @concept symbollic differentiation
-#' 
+#'
 #' @param f An expression or function to be differentiated.
 #'  f can be \itemize{
 #'   \item a user defined function: \code{function(x) x**n}
@@ -45,7 +45,7 @@
 #'  used, e.g. "cbind" (cf. Details, NB3), "list" or user defined ones. It must
 #'  accept any number of arguments or at least the same number of arguments as
 #'  there are items in \code{x}.
-#' 
+#'
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
 #'  \item an expression if \code{f} is an expression
@@ -58,7 +58,7 @@
 #' simple univariate differentiation.  "deriv" uses D to do multivariate
 #' differentiation.  The output of "D" is an expression, whereas the output of
 #' "deriv" can be an executable function.
-#' 
+#'
 #' R's existing functions have several limitations.  They can probably be fixed,
 #' but since they are written in C, this would probably require a lot of work.
 #' Limitations include:
@@ -70,7 +70,7 @@
 #' }
 #'
 #' So, here are the advantages of this implementation:
-#' 
+#'
 #' \itemize{
 #'  \item It is entirely written in R, so would be easier to maintain.
 #'  \item Can do multi-variate differentiation.
@@ -86,9 +86,9 @@
 #'	chain of derivatives.
 #'  }
 #'  \item It's easy to add custom entries to the derivatives table, e.g.
-#'   
+#'
 #'   \code{drule[["cos"]] <- alist(x=-sin(x))}
-#'   
+#'
 #'   The chain rule will be automatically applied if needed.
 #'  \item The output is an executable function, which makes it suitable
 #'      for use in optimization problems.
@@ -97,7 +97,7 @@
 #'  \item in case of multiple derivatives (e.g. gradient and hessian calculation),
 #'      caching can make calculation economies for both
 #' }
-#' 
+#'
 #' Two work environments \code{drule} and \code{simplifications} are
 #' exported in the package namescape.
 #' As their names indicate, they contain tables of derivative and
@@ -109,17 +109,17 @@
 #' per argument. See \code{drule$log} for an example to follow.
 #' After adding \code{sinpi} you can differentiate expressions like
 #' \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
-#' 
+#'
 #' NB. In \code{abs()} and \code{sign()} function, singularity treatment
 #'     at point 0 is left to user's care.
 #'     For example, if you need NA at singular points, you can define the following:
 #'     \code{drule[["abs"]] <- alist(x=ifelse(x==0, NA, sign(x)))}
 #'     \code{drule[["sign"]] <- alist(x=ifelse(x==0, NA, 0))}
-#' 
+#'
 #' NB2. In Bessel functions, derivatives are calculated only by the first argument,
 #'      not by the \code{nu} argument which is supposed to be constant.
 #'
-#' NB3. There is a side effect with vector length. E.g. in 
+#' NB3. There is a side effect with vector length. E.g. in
 #'      \code{Deriv(~a+b*x, c("a", "b"))} the result is \code{c(a = 1, b = x)}.
 #'      To avoid the difference in lengths of a and b components (when x is a vector),
 #'      one can use an optional parameter \code{combine}
@@ -145,7 +145,7 @@
 #' \dontrun{Deriv(f)}
 #' # function (x)
 #' # 2 * x
-#' 
+#'
 #' \dontrun{f <- function(x, y) sin(x) * cos(y)}
 #' \dontrun{Deriv(f)}
 #' # function (x, y)
@@ -155,34 +155,34 @@
 #' \dontrun{f_(3, 4)}
 #' #              x         y
 #' # [1,] 0.6471023 0.1068000
-#' 
+#'
 #' \dontrun{Deriv(~ f(x, y^2), "y")}
 #' # -(2 * (y * sin(x) * sin(y^2)))
-#' 
+#'
 #' \dontrun{Deriv(quote(f(x, y^2)), c("x", "y"), cache.exp=FALSE)}
 #' # c(x = cos(x) * cos(y^2), y = -(2 * (y * sin(x) * sin(y^2))))
-#' 
+#'
 #' \dontrun{Deriv(expression(sin(x^2) * y), "x")}
 #' # expression(2*(x*y*cos(x^2)))
-#' 
+#'
 #' Deriv("sin(x^2) * y", "x") # differentiate only by x
 #' "2 * (x * y * cos(x^2))"
-#' 
+#'
 #' Deriv("sin(x^2) * y", cache.exp=FALSE) # differentiate by all variables (here by x and y)
 #' "c(x = 2 * (x * y * cos(x^2)), y = sin(x^2))"
-#' 
+#'
 #' # Compound function example (here abs(x) smoothed near 0)
 #' fc <- function(x, h=0.1) if (abs(x) < h) 0.5*h*(x/h)**2 else abs(x)-0.5*h
 #' Deriv("fc(x)", "x", cache.exp=FALSE)
 #' "if (abs(x) < h) x/h else sign(x)"
-#' 
+#'
 #' # Example of a first argument that cannot be evaluated in the current environment:
 #' \dontrun{
 #'   suppressWarnings(rm("xx", "yy"))
 #'   Deriv(xx^2+yy^2)
 #' }
 #' # c(xx = 2 * xx, yy = 2 * yy)
-#' 
+#'
 #' # Automatic differentiation (AD), note itermediate variable 'd' assignment
 #' \dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x")}
 #' #{
@@ -190,7 +190,7 @@
 #' #   .d_x <- 2 * ((x - m)/s^2)
 #' #   -(0.5 * (.d_x * exp(-(0.5 * d))))
 #' #}
-#' 
+#'
 #' # Custom derivation rule
 #' \dontrun{
 #'   myfun <- function(x, y=TRUE) NULL # do something usefull
@@ -225,11 +225,11 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 	dsym$l <- list()
 	scache <- new.env()
 	scache$l <- list()
-	
+
 	if (is.null(env))
 		env <- .GlobalEnv
 	if (is.null(x)) {
-		# primitive function
+		# primitive function or function given by a list membr or alike
 		af <- formals(args(f))
 		x <- names(af)
 		rule <- drule[[fch]]
@@ -242,7 +242,15 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 			}
 			x=unlist(x)
 		}
-		fd <- as.call(c(as.symbol(fch), lapply(x, as.symbol)))
+		if (is.function(f)) {
+			rmget=mget(fch, mode="function", envir=env, inherits=TRUE, ifnotfound=NA)
+			if (!is.function(rmget[[fch]])) {
+				# no function with name stored in fch => replace it by its body
+				fd=body(f)
+			} else {
+				fd <- as.call(c(as.symbol(fch), lapply(names(af), as.symbol)))
+			}
+		}
 		pack_res <- as.call(alist(as.function, c(af, list(res)), envir=env))
 	} else {
 		x[] <- as.character(x)
@@ -314,7 +322,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		# set first derivative
 		i <- nderiv==1
 		lrep[i] <- list(res)
-		
+
 		maxd <- max(nderiv)
 		for (ider in seq_len(maxd)) {
 			if (ider < 2)
@@ -556,7 +564,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		if (length(rule) == 0) {
 			return(0)
 		}
-		
+
 		# apply chain rule where needed
 		ione <- sapply(dargs, identical, 1)
 		imone <- sapply(dargs, identical, -1)

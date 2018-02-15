@@ -1,3 +1,10 @@
+Version 3.8.4
+=============
+
+* 2018-02-15
+ - fixed calls to Deriv() when f is a closure (issue #17)
+ - fixed call to Deriv_() when some arguments of f are not differentiable
+
 Version 3.8.3
 =============
 
