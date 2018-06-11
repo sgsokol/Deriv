@@ -345,7 +345,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 
 # workhorse function doing the main work of differentiation
 Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
-	stch <- as.character(if (is.call(st)) st[[1]] else st)
+	stch <- format1(if (is.call(st)) st[[1]] else st)
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	iel=which("..." == x)
 	if (length(iel) > 0) {
@@ -370,7 +370,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	}
 	# differentiate R statement 'st' (a call, or a symbol or numeric) by a name in 'x'
 	get_sub_x <- !(is.null(nm_x) | nchar(nm_x) == 0 | is.na(nm_x))
-	is_index_expr <- is.call(st) && any(as.character(st[[1]]) == c("$", "[", "[["))
+	is_index_expr <- is.call(st) && any(format1(st[[1]]) == c("$", "[", "[["))
 	is_sub_x <- is_index_expr &&
 				format1(st[[2]]) == nm_x && format1(st[[3]]) == x
 	if (is.conuloch(st) || (is_index_expr && !is_sub_x)) {
@@ -389,7 +389,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		}
 	} else if (is.call(st)) {
 #browser()
-		stch <- as.character(st[[1]])
+		stch <- format1(st[[1]])
 		args <- as.list(st)[-1]
 		if (stch %in% dlin) {
 			# linear case
@@ -414,7 +414,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 				}
 			}
 			# collect defined var names (to avoid redifferentiation)
-			defs <- sapply(args, function(e) if (is.assign(e)) as.character(e[[2]]) else "")
+			defs <- sapply(args, function(e) if (is.assign(e)) format1(e[[2]]) else "")
 #			alva <- list()
 			last_res <- list()
 			for (iarg in seq_along(args)) {
@@ -424,7 +424,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
 					# put in scache the assignement
-					ach <- as.character(a[[2]])
+					ach <- format1(a[[2]])
 					for (ix in seq_along(x)) {
 						d_ach <- paste(".", ach, "_", x[ix], sep="")
 						d_a <- as.symbol(d_ach)
@@ -441,7 +441,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 							dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- de_a
 						else
 							dsym$l[[x[ix]]][[ach]] <- de_a
-						if (identical(de_a, 0)) {
+						if (is.numconst(de_a, 0)) {
 							if (iarg < length(args))
 								next
 						} else if (!is.call(de_a)) {

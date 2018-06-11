@@ -64,10 +64,10 @@ format1 <- function(expr) {
 	n <- length(res)
 	if (n > 1) {
 		if (res[1] == "{" && n > 2) {
-			b <- paste(res[-1], collapse="; ")
-			res <- paste("{", b, "}", collapse="")
+			b <- paste0(res[-1], collapse="; ")
+			res <- paste0("{", b, "}", collapse="")
 		} else {
-			res <- paste(res, collapse="")
+			res <- paste0(res, collapse=" ")
 		}
 	}
 	return(res)
@@ -97,7 +97,7 @@ Simplify_ <- function(expr, scache) {
 			return(res)
 		} else {
 			# is there a rule in the table?
-			sym.name <- as.character(expr[[1]])
+			sym.name <- format1(expr[[1]])
 			Simplify.rule <- simplifications[[sym.name]]
 			res <- if (!is.null(Simplify.rule)) Simplify.rule(expr, scache=scache) else expr
 			scache$l[[che]] <- res
@@ -127,10 +127,10 @@ Simplify_ <- function(expr, scache) {
 	a <- expr[[2]]
 	b <- expr[[3]]
 	
-	if (a == 0 || (is.call(a) && as.character(a[[1]]) %in% c("rep", "rep.int", "rep_len") && a[[2]] == 0)) {
+	if (is.numconst(a, 0) || (is.call(a) && format1(a[[1]]) %in% c("rep", "rep.int", "rep_len") && is.numconst(a[[2]], 0))) {
 #browser()
 		return(if (add) b else call("-", b))
-	} else if (b == 0 || (is.call(b) && as.character(b[[1]]) %in% c("rep", "rep.int", "rep_len") && b[[2]] == 0)) {
+	} else if (is.numconst(b, 0) || (is.call(b) && format1(b[[1]]) %in% c("rep", "rep.int", "rep_len") && is.numconst(b[[2]], 0))) {
 #browser()
 		return(a)
 	} else if (add && is.uminus(a) && !is.uminus(b)) {
@@ -143,7 +143,7 @@ Simplify_ <- function(expr, scache) {
 	} else if (!is.call(a) && !is.call(b)) {
 		if (add) {
 			# just reorder
-			expr[-1] <- expr[1+order(sapply(expr[-1], as.character))]
+			expr[-1] <- expr[1+order(sapply(expr[-1], format1))]
 		}
 		return(expr)
 	}
@@ -275,13 +275,13 @@ Simplify_ <- function(expr, scache) {
 		b <- b[[2]]
 	}
 #browser()
-	if (identical(a, 0) || (is.call(a) && as.character(a[[1]]) %in% c("rep", "rep.int", "rep_len") && identical(a[[2]], 0)) || (identical(b, 0) || (is.call(b) && as.character(b[[1]]) %in% c("rep", "rep.int", "rep_len") && identical(b[[2]], 0)) && !div)) {
+	if (is.numconst(a, 0) || (is.call(a) && format1(a[[1]]) %in% c("rep", "rep.int", "rep_len") && is.numconst(a[[2]], 0)) || (is.numconst(b, 0) || (is.call(b) && format1(b[[1]]) %in% c("rep", "rep.int", "rep_len") && is.numconst(b[[2]], 0)) && !div)) {
 #	if (a == 0 || (b == 0 && !div)) {
 #browser()
 		0
-	} else if (identical(a, 1) && !div) {
+	} else if (is.numconst(a, 1) && !div) {
 		if (sminus) call("-", b) else b
-	} else if (identical(b, 1)) {
+	} else if (is.numconst(b, 1)) {
 		if (sminus) call("-", a) else a
 	} else if (div && identical(a, b)) {
 		if (sminus) -1 else 1
@@ -398,13 +398,13 @@ Simplify_ <- function(expr, scache) {
 	a <- expr[[2]]
 	b <- expr[[3]]
 
-	if (a == 0) {
+	if (is.numconst(a, 0)) {
 		0
-	} else if (b == 0 || a == 1) {
+	} else if (is.numconst(b, 0) || is.numconst(a, 1)) {
 		1
-	} else if (b == 1) {
+	} else if (is.numconst(b, 1)) {
 		a
-	} else if (b == 0.5) {
+	} else if (identical(b, 0.5)) {
 		substitute(sqrt(a))
 	} else if (b == -0.5) {
 		substitute(1/sqrt(a))
@@ -431,7 +431,7 @@ Simplify_ <- function(expr, scache) {
 Simplify.log <- function(expr, scache=NULL) {
 	if (is.call(expr[[2]])) {
 		# the argument of log is a function
-		subf <- as.character(expr[[2]][[1]])
+		subf <- format1(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			expr[[2]] <- expr[[2]][[2]]
@@ -472,7 +472,7 @@ Simplify.log <- function(expr, scache=NULL) {
 Simplify.sqrt <- function(expr, scache=NULL) {
 	if (is.call(expr[[2]])) {
 		# the argument of sqrt is a function
-		subf <- as.character(expr[[2]][[1]])
+		subf <- format1(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			Simplify_(call("^",  call("abs", expr[[2]][[2]]), call("/", p, 2)), scache)
@@ -494,7 +494,7 @@ Simplify.abs <- function(expr, scache=NULL) {
 	if (is.uminus(expr[[2]])) {
 		expr[[2]] <- expr[[2]][[2]]
 	} else if (is.call(expr[[2]])) {
-		subf <- as.character(expr[[2]][[1]])
+		subf <- format1(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			if (is.numeric(p) && p%%2 == 0)
@@ -510,7 +510,7 @@ Simplify.sign <- function(expr, scache=NULL) {
 		expr[[2]] <- expr[[2]][[2]]
 		expr <- call("-", expr)
 	} else if (is.call(expr[[2]])) {
-		subf <- as.character(expr[[2]][[1]])
+		subf <- format1(expr[[2]][[1]])
 		if (subf == "^") {
 			p <- expr[[2]][[3]]
 			if (is.numeric(p) && p%%2 == 0)
@@ -658,7 +658,13 @@ is.assign <- function(e) {
 }
 is.subindex <- function(e) {
 	# is e a simple subindex expression?
-	is.call(e) && any(as.character(e[[1]]) == c("$", "[", "[[")) && (is.symbol(e[[2]]) && (is.symbol(e[[3]]) || is.conuloch(e[[3]])))
+	is.call(e) && any(format1(e[[1]]) == c("$", "[", "[[")) && (is.symbol(e[[2]]) && (is.symbol(e[[3]]) || is.conuloch(e[[3]])))
+}
+is.numconst <- function(e, val=NULL) {
+	res=is.numeric(e) && length(e) == 1L
+	if (res && !is.null(val))
+		res = res && is.numconst(val) && e == val
+	return(res)
 }
 Lincomb <- function(expr) {
 	# decompose expr in a list of product terms (cf Numden)
@@ -707,7 +713,7 @@ Leaves <- function(st, ind="1", res=new.env()) {
 				stop("Re-assignment is not supported yet in caching.")
 			if (is.call(st[[2]]))
 				stop("Cannot handle yet indexing in left values.")
-			lhs <- as.character(st[[2]])
+			lhs <- format1(st[[2]])
 			res$lhs[[ind]] <- lhs # we cannot handle yet `[`, `$` etc.
 			res$def[[lhs]] <- format1(st[[3]])
 			# exclude this assignement from replacements if .eX
@@ -729,7 +735,7 @@ ind2call <- function(ind, st="st")
 # prefix is used to form auxiliary variable
 ##' @rdname Simplify
 Cache <- function(st, env=Leaves(st), prefix="") {
-	stch <- if (is.call(st)) as.character(st[[1]]) else ""
+	stch <- if (is.call(st)) format1(st[[1]]) else ""
 	env$lhs <- unlist(env$lhs)
 	#if (stch == "<-" || stch == "=") {
 	#	return(call("<-", st[[2]], Cache(st[[3]], env=env, prefix=paste(".", st[[2]], sep=""))))
@@ -756,7 +762,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 			ispl <- strsplit(ind, ".", fixed=TRUE)[[1]]
 			indup <- paste(ispl[-length(ispl)], collapse=".")
 			stup <- eval(ind2call(indup))
-			if ((is.assign(stup) && (as.character(stup[[2]]) == nme || natcompare(indup, idef) < 0)))
+			if ((is.assign(stup) && (format1(stup[[2]]) == nme || natcompare(indup, idef) < 0)))
 				next
 			ve[i] <- NA
 			do.call(`<-`, list(ind2call(ind), quote(as.symbol(nme))))
@@ -834,7 +840,7 @@ deCache <- function(st) {
 	if (!is.call(st)) {
 		return(st)
 	}
-	stch <- as.character(st[[1]])
+	stch <- format1(st[[1]])
 	stl <- as.list(st)
 	if (stch == "{") {
 		repl <- list()
