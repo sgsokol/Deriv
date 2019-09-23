@@ -373,8 +373,12 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	is_index_expr <- is.call(st) && any(format1(st[[1]]) == c("$", "[", "[["))
 	is_sub_x <- is_index_expr &&
 				format1(st[[2]]) == nm_x && format1(st[[3]]) == x
-	if (is.conuloch(st) || (is_index_expr && !is_sub_x)) {
+	if (is.conuloch(st)) {
 		return(0)
+	} else if (is_index_expr && !is_sub_x) {
+		res <- st
+		res[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache)
+		return(Simplify(res, scache=scache))
 	} else if (is.symbol(st) || (get_sub_x && is_index_expr)) {
 #browser()
 		stch <- format1(st)
@@ -559,17 +563,24 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		}
 		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache))
 		ize <- sapply(dargs, identical, 0)
+		if (stch == "%*%") {
+			ize <- ize | sapply(dargs, identical, matrix(0))
+		}
 		dargs <- dargs[!ize]
 		rule <- rule[!ize]
 		if (length(rule) == 0) {
 			return(0)
 		}
 
+		if (stch %in% c("det", "diag", "diagonal", "matrix", "solve")) {
+			return(Simplify(do.call("substitute", list(rule[[1]], list(.derivative=dargs[[1]]))), scache=scache))
+		}
+
 		# apply chain rule where needed
 		ione <- sapply(dargs, identical, 1)
 		imone <- sapply(dargs, identical, -1)
 		for (i in seq_along(rule)[!(ione|imone)]) {
-			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache=scache)
+			rule[[i]] <- Simplify(if (stch == '%*%') if (names(rule)[i] == 'x') call("%*%", dargs[[i]], rule[[i]]) else call("%*%", rule[[i]], dargs[[i]]) else call("*", dargs[[i]], rule[[i]]), scache=scache)
 		}
 		for (i in seq_along(rule)[imone]) {
 			rule[[i]] <- Simplify(call("-", rule[[i]]), scache=scache)
