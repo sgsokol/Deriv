@@ -340,6 +340,8 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 #browser()
 	if (cache.exp)
 		res <- Cache(Simplify(deCache(res), scache=scache))
+	else
+		res <- Simplify(res, scache=scache)
 	eval(pack_res)
 }
 
@@ -373,13 +375,14 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	is_index_expr <- is.call(st) && any(format1(st[[1]]) == c("$", "[", "[["))
 	is_sub_x <- is_index_expr &&
 				format1(st[[2]]) == nm_x && format1(st[[3]]) == x
+#browser()
 	if (is.conuloch(st)) {
 		return(0)
 	} else if (is_index_expr && !is_sub_x) {
 		res <- st
 		res[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache)
 		return(Simplify(res, scache=scache))
-	} else if (is.symbol(st) || (get_sub_x && is_index_expr)) {
+	} else if (length(x) == 1 && (is.symbol(st) || (get_sub_x && is_index_expr))) {
 #browser()
 		stch <- format1(st)
 		if ((stch == x && !get_sub_x) || (get_sub_x && is_sub_x)) {
@@ -531,7 +534,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			}
 			mc <- match.call(ff, st)
 			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])), scache)
-			return(Deriv_(st, x, env, use.D, dsym, scache))
+			return(Simplify(Deriv_(st, x, env, use.D, dsym, scache)))
 		}
 		# there is a rule!
 		if (use.D) {

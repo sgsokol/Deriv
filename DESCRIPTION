@@ -1,11 +1,11 @@
 Package: Deriv
 Type: Package
 Title: Symbolic Differentiation
-Version: 3.8.5
-Date: 2018-06-11
+Version: 3.9.0
+Date: 2019-09-20
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
-    email="sokol@insa-toulouse.fr"))
+    email="sokol@insa-toulouse.fr", comment = c(ORCID = "0000-0002-5674-3327")))
 Description: R-based solution for symbolic differentiation. It admits
     user-defined function as well as function substitution
     in arguments of functions to be differentiated. Some symbolic

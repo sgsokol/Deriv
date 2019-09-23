@@ -7,7 +7,7 @@ Symbolic Differentiation
 \description{
 R already contains two differentiation functions: D and deriv.
 
-R's existing functions have several limitations:
+These functions have several limitations:
 
 \itemize{
  \item the derivatives table can't be modified at runtime, and is only available
@@ -43,8 +43,8 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 3.8.5\cr
-Date: \tab 2018-06-11\cr
+Version: \tab 3.9.0\cr
+Date: \tab 2019-09-20\cr
 License: \tab GPL (>= 3)\cr
 }
 Two main functions are Deriv() for differentiating
