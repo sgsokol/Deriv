@@ -559,7 +559,43 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	}
 	expr
 }
-
+`Simplify.%*%` <- function(expr, scache=NULL)
+{
+	a <- expr[[2]]
+	b <- expr[[3]]
+	if (identical(a, 0) || identical(a, 0L) || identical(b, 0) || identical(b, 0L))
+		return(0)
+	if (identical(a, 1) || identical(a, 1L)) {
+		return(b)
+	} else if (identical(b, 1) || identical(b, 1L)) {
+		return(a)
+	} else {
+		expr
+	}
+}
+`Simplify.$` <- function(expr, scache=NULL)
+{
+#browser()
+	# list(a=smth, b=...)$a -> smth
+	a <- expr[[2]]
+	b <- expr[[3]]
+	bch <- as.character(b)
+	if (((is.call(a) && "list" == as.character(a[[1]])) || is.list(a)) && is.name(b) && !is.na(i <- pmatch(bch, names(a)))) {
+		return(a[[i]])
+	}
+	expr
+}
+`Simplify.[[` <- function(expr, scache=NULL)
+{
+#browser()
+	# list(a=smth, b=...)$a -> smth
+	a <- expr[[2]]
+	b <- expr[[3]]
+	if (((is.call(a) && ((ach <- as.character(a[[1]])) == "list" || ach == "c")) || is.vector(a)) && length(b) == 1 && is.character(b) && !is.na(i <- match(b, names(a)))) {
+		return(a[[i]])
+	}
+	expr
+}
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# "fa" field is for numeric factors in "num" and "den" subfields.
@@ -1030,3 +1066,6 @@ assign("besselK", `Simplify.bessel`, envir=simplifications)
 #assign("<-", `Simplify.=`, envir=simplifications)
 #assign("=", `Simplify.=`, envir=simplifications)
 assign("{", `Simplify.{`, envir=simplifications)
+assign("%*%", `Simplify.%*%`, envir=simplifications)
+assign("$", `Simplify.$`, envir=simplifications)
+assign("[[", `Simplify.[[`, envir=simplifications)

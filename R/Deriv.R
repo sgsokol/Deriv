@@ -184,7 +184,7 @@
 #' # c(xx = 2 * xx, yy = 2 * yy)
 #'
 #' # Automatic differentiation (AD), note itermediate variable 'd' assignment
-#' \dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x")}
+#' \dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x", cache.exp=FALSE)}
 #' #{
 #' #   d <- ((x - m)/s)^2
 #' #   .d_x <- 2 * ((x - m)/s^2)
@@ -376,8 +376,11 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	is_sub_x <- is_index_expr &&
 				format1(st[[2]]) == nm_x && format1(st[[3]]) == x
 #browser()
-	if (is.conuloch(st) || (is_index_expr && !is_sub_x)) {
+	if (is.conuloch(st)) {
 		return(0)
+	} else if (is_index_expr && !is_sub_x) {
+		st[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache)
+		return(Simplify(st, scache=scache))
 	} else if (length(x) == 1 && (is.symbol(st) || (get_sub_x && is_index_expr))) {
 #browser()
 		stch <- format1(st)
@@ -548,7 +551,13 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		mc <- as.list(match.call(definition=da, call=st, expand.dots=FALSE))[-1]
 		da <- as.list(da)
 		da <- da[-length(da)] # all declared arguments with default values
-		aa <- modifyList(da, mc) # all arguments with actual values
+		if (isTRUE(rule$`_missing`)) {
+			aa <- mc
+			aa[setdiff(names(da), names(mc))] <- list(alist(x=)$x) # missing arguments are set missing
+		} else {
+			aa <- modifyList(da, mc) # all arguments with actual values
+		}
+		rule$.missing=NULL
 		# actualize the rule with actual arguments
 		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
 #browser()
@@ -561,21 +570,28 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			return(0)
 		}
 		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache))
-		ize <- sapply(dargs, identical, 0)
+		names(dargs) <- names(rule)
+		ize <- sapply(dargs, identical, 0) | sapply(dargs, identical, matrix(0))
 		dargs <- dargs[!ize]
 		rule <- rule[!ize]
 		if (length(rule) == 0) {
 			return(0)
 		}
+#browser()
+		# actualize the rule with differentiated arguments
+		lrep=structure(dargs, names=paste0('.d_', names(dargs)))
+		rule <- lapply(rule, substituteDirect, lrep)
 
 		# apply chain rule where needed
-		ione <- sapply(dargs, identical, 1)
-		imone <- sapply(dargs, identical, -1)
-		for (i in seq_along(rule)[!(ione|imone)]) {
-			rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache=scache)
-		}
-		for (i in seq_along(rule)[imone]) {
-			rule[[i]] <- Simplify(call("-", rule[[i]]), scache=scache)
+		if (! stch %in% c("matrix", "%*%", "det", "solve", "diag")) {
+			ione <- sapply(dargs, identical, 1)
+			imone <- sapply(dargs, identical, -1)
+			for (i in seq_along(rule)[!(ione|imone)]) {
+				rule[[i]] <- Simplify(call("*", dargs[[i]], rule[[i]]), scache=scache)
+			}
+			for (i in seq_along(rule)[imone]) {
+				rule[[i]] <- Simplify(call("-", rule[[i]]), scache=scache)
+			}
 		}
 		return(Simplify(li2sum(rule), scache=scache))
 	} else if (is.function(st)) {
@@ -656,7 +672,18 @@ drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
 drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
+drule[["qnorm"]] = alist(p=1/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
+                         mean=1,
+                         sd=(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p) - mean)/sd)
 # data mangling
 #drule[["rep"]] <- alist(x=rep(1, ...)) # cannot handle '...' yet
 drule[["rep.int"]] <- alist(x=rep.int(1, times), times=NULL)
 drule[["rep_len"]] <- alist(x=rep_len(1, length.out), length.out=NULL)
+drule[["length"]] <- alist() # derivative is always 0
+# matrix calculus
+drule[["matrix"]] <- alist(`_missing`=TRUE, data=matrix(.d_data, nrow=nrow, ncol=ncol, byrow=byrow, dimnames=dimnames))
+drule[["%*%"]] <- alist(x=.d_x%*%y, y=x%*%.d_y)
+drule[["det"]] <- alist(x=det(x)*sum(diag(solve(x, .d_x))))  # TODO
+drule[["solve"]] <- alist(`_missing`=TRUE, a=-solve(a)%*%.d_a%*%solve(a, b),
+                         b=solve(a, .d_b))
+drule[["diag"]] = alist(`_missing`=TRUE, x=if (!is.matrix(x) && length(x) == 1) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names))
