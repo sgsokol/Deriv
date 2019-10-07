@@ -557,7 +557,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		} else {
 			aa <- modifyList(da, mc) # all arguments with actual values
 		}
-		rule$.missing=NULL
+		rule$`_missing`=NULL
 		# actualize the rule with actual arguments
 		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
 #browser()
