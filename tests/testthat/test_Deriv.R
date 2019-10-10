@@ -2,11 +2,11 @@ context(paste("Symbolic differentiation rules v", packageVersion("Deriv"), sep="
 lc_orig=Sys.getlocale(category = "LC_COLLATE")
 Sys.setlocale(category = "LC_COLLATE", locale = "C")
 
-num_test_deriv <- function(fun, larg, narg=1, h=1.e-5, tolerance=2000*h^2) {
+num_test_deriv <- function(fun, larg, narg, h=1.e-5, tolerance=2000*h^2) {
    # test the first derivative of a function fun() (given as a character
    # string) by Deriv() and central difference.
    # larg is a named list of parameters to pass to fun
-   # narg indicates by which of fun's arguments the differentiation must be made
+   # narg indicates the argument name by which the differentiation must be made
    # h is the small perturbation in the central differentiation: x-h and x+h 
    # Parameter tolerance is used in comparison test.
    if (length(names(larg)) == 0)
@@ -20,15 +20,15 @@ num_test_deriv <- function(fun, larg, narg=1, h=1.e-5, tolerance=2000*h^2) {
    f_mh=do.call(fun, larg_mh)
    dnum=(f_ph-f_mh)/(2*h)
    sym_larg=larg
-   nm_x=names(larg)[narg]
-   sym_larg[[narg]]=as.symbol(nm_x)
+
+   sym_larg[[narg]]=as.symbol(narg)
    flang=as.symbol(fun)
-   dsym=try(do.call(as.function(c(sym_larg, list(Deriv(as.call(c(flang, sym_larg)), nm_x)))), larg, quote=TRUE))
+   dsym=try(do.call(as.function(c(sym_larg, list(Deriv(as.call(c(flang, sym_larg)), narg)))), larg, quote=TRUE))
    if (inherits(dsym, "try-error")) {
       stop(sprintf("failed to calculate symbolic derivative of '%s'", format1(as.call(c(flang, sym_larg)))))
    }
 #cat(sprintf("comparing %s by %s\n", format1(as.call(c(flang, larg))), nm_x))
-   expect_equal(dnum, dsym, tolerance=tolerance, info=sprintf("%s by %s", format1(as.call(c(flang, larg))), nm_x))
+   expect_equal(as.vector(dnum), as.vector(dsym), tolerance=tolerance, info=sprintf("%s by %s", format1(as.call(c(flang, larg))), narg))
 }
 
 f=function(x) {} # empty place holder
@@ -198,21 +198,21 @@ test_that("reused variables", { # (issue #12)
 })
 
 # composite function differentiation/caching (issue #6)
-f<-function(x){ t<-x^2; log(t) }
-g<-function(x) cos(f(x))
+f <- function(x){ t<-x^2; log(t) }
+g <- function(x) cos(f(x))
 test_that("composite function", {
    expect_equal(Deriv(g,"x"), function (x) -(2 * (sin(f(x))/x)))
 })
 
 # user function with non diff arguments
-ifel<-ifelse
+ifel <- ifelse
 drule[["ifel"]]<-alist(test=NULL, yes=(test)*1, no=(!test)*1)
 suppressWarnings(rm(t))
 expect_equal(Deriv(~ifel(abs(t)<0.1, t**2, abs(t)), "t"), quote({
     .e2 <- abs(t) < 0.1
     (!.e2) * sign(t) + 2 * (t * .e2)
 }))
-drule[["ifel"]]<-NULL
+rm("ifel", envir=drule)
 
 
 # test error reporting
@@ -225,9 +225,13 @@ test_that("error reporting", {
 # systematic central difference tests
 set.seed(7)
 test_that("central differences", {
+#browser()
    for (nm_f in ls(drule)) {
+      fargs=head(as.list(args(nm_f)), -1L)
+      fargs[["..."]]=NULL
+      ilo=sapply(fargs, isTRUE) | sapply(fargs, isFALSE)
       rule <- drule[[nm_f]]
-      larg <- rule
+      larg <- fargs
       narg <- length(larg)
       if (nm_f == "rep.int") {
          larg["x"]=pi
@@ -238,25 +242,39 @@ test_that("central differences", {
       } else {
          larg[] <- runif(narg)
       }
-      
+      if (nm_f == "det") {
+         larg[["x"]]=as.matrix(larg[["x"]])
+      } else if (nm_f == "acosh") {
+         larg[["x"]]=1+larg[["x"]]
+      } else if (nm_f == "diag" || nm_f == "matrix") {
+         larg[["nrow"]]=larg[["ncol"]]=1L
+         if (nm_f == "matrix") {
+#browser()
+            larg[["dimnames"]]=NULL
+            ilo=ilo[-which(names(ilo) %in% "dimnames")]
+         }
+      }
       # possible logical parameters are swithed on/off
-      fargs=formals(nm_f)
-      ilo=sapply(fargs, is.logical)
       if (any(ilo))
          logrid=do.call(expand.grid, rep(list(c(TRUE, FALSE)), sum(ilo)))
-      for (iarg in seq_len(narg)) {
-         if (is.null(rule[[iarg]]))
+      for (arg in names(rule)) {
+         if (is.null(rule[[arg]]) || arg == "_missing")
             next
          if (is.null(fargs) || !any(ilo)) {
-            tmp=try(num_test_deriv(nm_f, larg, narg=iarg), silent=TRUE)
+            
+            tmp=try(num_test_deriv(nm_f, larg, narg=arg), silent=TRUE)
             if (inherits(tmp, "try-error")) {
-               stop(sprintf("Failed num. deriv. on '%s(%s)'", nm_f, paste(names(larg), larg, sep="=", collapse=", ")))
+               stop(sprintf("Failed num. deriv test on '%s(%s)'", nm_f, paste(names(larg), larg, sep="=", collapse=", ")))
             }
          } else {
             apply(logrid, 1, function(lv) {
+#browser()
                lolarg=larg
                lolarg[ilo]=lv
-               suppressWarnings(num_test_deriv(nm_f, lolarg, narg=iarg))
+               if (nm_f == "qnorm" && isTRUE(lolarg[["log.p"]])) {
+                  lolarg[["p"]]=log(lolarg[["p"]])
+               }
+               suppressWarnings(num_test_deriv(nm_f, lolarg, narg=arg))
             })
          }
       }

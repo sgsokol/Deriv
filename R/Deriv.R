@@ -609,6 +609,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	}
 }
 
+arg_missing <- function(x) missing(x)
 drule <- new.env()
 
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
@@ -672,7 +673,7 @@ drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
 drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
-drule[["qnorm"]] = alist(p=1/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
+drule[["qnorm"]] = alist(p=ifelse(lower.tail, 1, -1)*ifelse(log.p, exp(p), 1)/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
                          mean=1,
                          sd=(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p) - mean)/sd)
 # data mangling
@@ -683,7 +684,7 @@ drule[["length"]] <- alist() # derivative is always 0
 # matrix calculus
 drule[["matrix"]] <- alist(`_missing`=TRUE, data=matrix(.d_data, nrow=nrow, ncol=ncol, byrow=byrow, dimnames=dimnames))
 drule[["%*%"]] <- alist(x=.d_x%*%y, y=x%*%.d_y)
-drule[["det"]] <- alist(x=det(x)*sum(diag(solve(x, .d_x))))  # TODO
+drule[["det"]] <- alist(x=det(x)*sum(diag(as.matrix(solve(x, .d_x)))))
 drule[["solve"]] <- alist(`_missing`=TRUE, a=-solve(a)%*%.d_a%*%solve(a, b),
                          b=solve(a, .d_b))
-drule[["diag"]] = alist(`_missing`=TRUE, x=if (!is.matrix(x) && length(x) == 1) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names))
+drule[["diag"]] = alist(`_missing`=TRUE, x=if (!is.matrix(x) && length(x) == 1 && arg_missing(nrow) && arg_missing(ncol)) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names))
