@@ -86,10 +86,16 @@ Simplify_ <- function(expr, scache) {
 				return(res)
 			}
 		}
+		che1 <- as.character(expr[[1L]])
+		if (che1 == "arg_missing" || ((che1 == "::" || che1 == ":::") && as.character(expr[[2L]]) == "Deriv" && as.character(expr[[3L]][[1L]]) == "arg_missing")) {
+			res <- eval(expr)
+			scache$l[[che]] <- res
+			return(res)
+		}
 		scache$l[[che]] <- NA # token holder
 #cat("simp expr=", format1(expr), "\n", sep="")
 		args <- lapply(as.list(expr)[-1], Simplify_, scache)
-		expr[-1]=args
+		expr[-1] <- args
 		if (all(sapply(args, is.conuloch))) {
 			# if all arguments are like numeric, evaluate them
 			res <- eval(expr)
@@ -609,6 +615,36 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	}
 	expr
 }
+`Simplify.||` <- function(expr, scache=NULL)
+{
+#browser()
+	# a || TRUE -> TRUE
+	# a || FALSE -> a
+	a <- expr[[2L]]
+	b <- expr[[3L]]
+	if (identical(a, TRUE) || identical(b, TRUE))
+		return(TRUE)
+	if (identical(a, FALSE))
+		return(b)
+	if (identical(b, FALSE))
+		return(a)
+	expr
+}
+`Simplify.&&` <- function(expr, scache=NULL)
+{
+#browser()
+	# a && TRUE -> a
+	# a && FALSE -> FALSE
+	a <- expr[[2L]]
+	b <- expr[[3L]]
+	if (identical(a, FALSE) || identical(b, FALSE))
+		return(FALSE)
+	if (identical(a, TRUE))
+		return(b)
+	if (identical(b, TRUE))
+		return(a)
+	expr
+}
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# "fa" field is for numeric factors in "num" and "den" subfields.
@@ -1082,3 +1118,5 @@ assign("{", `Simplify.{`, envir=simplifications)
 assign("%*%", `Simplify.%*%`, envir=simplifications)
 assign("$", `Simplify.$`, envir=simplifications)
 assign("[[", `Simplify.[[`, envir=simplifications)
+assign("||", `Simplify.||`, envir=simplifications)
+assign("&&", `Simplify.&&`, envir=simplifications)
