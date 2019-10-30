@@ -379,8 +379,13 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 	if (is.conuloch(st)) {
 		return(0)
 	} else if (is_index_expr && !is_sub_x) {
+#browser()
 		st[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache)
-		return(Simplify(st, scache=scache))
+		if (identical(st[[2]], 0) || identical(st[[2]], 0L)) {
+			return(0)
+		} else {
+			return(Simplify(st, scache=scache))
+		}
 	} else if (length(x) == 1 && (is.symbol(st) || (get_sub_x && is_index_expr))) {
 #browser()
 		stch <- format1(st)
