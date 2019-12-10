@@ -36,6 +36,7 @@ The advantages of this package include:
       \code{drule[["cos"]] <- alist(x=-sin(x))}
  \item The output can be an executable function, which makes it suitable for use in
 optimization problems.
+ \item Starting from v4.0, some matrix calculus operations are possible (contribution of Andreas Rappold). See an example in \code{help("Deriv")} for differentiation of the inverse of 2x2 matrix and whose elements depend on variable of differentiation \code{x}.
 }
 }
 
@@ -43,8 +44,8 @@ optimization problems.
 \tabular{ll}{
 Package: \tab Deriv\cr
 Type: \tab Package\cr
-Version: \tab 3.9.0\cr
-Date: \tab 2019-09-20\cr
+Version: \tab 4.0\cr
+Date: \tab 2019-12-10\cr
 License: \tab GPL (>= 3)\cr
 }
 Two main functions are Deriv() for differentiating

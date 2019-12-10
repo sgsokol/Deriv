@@ -595,7 +595,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 #browser()
 		# actualize the rule with differentiated arguments
 		lrep=structure(dargs, names=paste0('.d_', names(dargs)))
-		rule <- lapply(rule, substituteDirect, lrep)
+		rule <- lapply(rule, methods::substituteDirect, lrep)
 
 		# apply chain rule where needed
 		if (! stch %in% c("matrix", "%*%", "det", "solve", "diag")) {

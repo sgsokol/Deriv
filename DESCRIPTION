@@ -16,3 +16,4 @@ Suggests:
     testthat
 BugReports: https://github.com/sgsokol/Deriv/issues
 RoxygenNote: 6.1.1
+Imports: methods
