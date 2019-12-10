@@ -16,4 +16,3 @@ A character vector of length 1 contrary to base::format() which
 \description{
 Wrapper for base::format() function
 }
-

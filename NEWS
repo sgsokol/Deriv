@@ -1,3 +1,10 @@
+Version 4.0
+===========
+
+* 2019-12-10
+ - added matrix calculus (contribution from Andreas Rappold, issue #20). Additional functions that can be differentiated now are: matrix(), solve(), det(), diag() and `%*%`
+ - added qnorm() differentiation rule (contribution idem)
+
 Version 3.9.0
 =============
 

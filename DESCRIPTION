@@ -1,11 +1,12 @@
 Package: Deriv
 Type: Package
 Title: Symbolic Differentiation
-Version: 3.9.0.1
-Date: 2019-09-20
+Version: 4.0
+Date: 2019-12-10
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
-    email="sokol@insa-toulouse.fr", comment = c(ORCID = "0000-0002-5674-3327")))
+    email="sokol@insa-toulouse.fr", comment = c(ORCID = "0000-0002-5674-3327")),
+    person(given="Andreas", family="Rappold", role="ctb", email="arappold@gmx.at"))
 Description: R-based solution for symbolic differentiation. It admits
     user-defined function as well as function substitution
     in arguments of functions to be differentiated. Some symbolic
@@ -14,4 +15,4 @@ License: GPL (>=3)
 Suggests:
     testthat
 BugReports: https://github.com/sgsokol/Deriv/issues
-RoxygenNote: 5.0.1
+RoxygenNote: 6.1.1

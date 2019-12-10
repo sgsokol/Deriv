@@ -94,6 +94,11 @@ Simplify_ <- function(expr, scache) {
 		}
 		scache$l[[che]] <- NA # token holder
 #cat("simp expr=", format1(expr), "\n", sep="")
+		# skip missing unnamed args
+		imi <- sapply(expr, function(it) identical(nchar(it), 0L))
+		if (any(imi) && length(nms <- names(expr)) > 0L)
+			imi <- imi & sapply(nms, function(it) identical(nchar(it), 0L))
+		expr <- as.call(as.list(expr)[!imi])
 		args <- lapply(as.list(expr)[-1], Simplify_, scache)
 		expr[-1] <- args
 		if (all(sapply(args, is.conuloch))) {
@@ -596,7 +601,7 @@ Simplify.bessel <- function(expr, scache=NULL) {
 `Simplify.[` <- function(expr, scache=NULL)
 {
 #browser()
-	# list(a=smth, b=...)$a -> smth
+	# 0[smth] -> 0
 	a <- expr[[2]]
 	if (identical(a, 0) || identical(a, 0L))
 		return(a)

@@ -1,8 +1,8 @@
 #' @name Deriv
-#' @title Symbollic differentiation of an expression or function
-#' @description Symbollic differentiation of an expression or function
+#' @title Symbolic differentiation of an expression or function
+#' @description Symbolic differentiation of an expression or function
 #' @aliases Deriv drule
-#' @concept symbollic differentiation
+#' @concept symbolic differentiation
 #'
 #' @param f An expression or function to be differentiated.
 #'  f can be \itemize{
@@ -13,7 +13,7 @@
 #'   \item a language: \code{quote(x**n)}
 #'   \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 #'  }
-#' @param x An optional character vector with variable name(s) with resptect to which
+#' @param x An optional character vector with variable name(s) with respect to which
 #'  \code{f} must be differentiated. If not provided (i.e. x=NULL), x is
 #'  guessed either from\ code{names(formals(f))} (if \code{f} is a function)
 #'  or from all variables in f in other cases.
@@ -22,7 +22,7 @@
 #'  variables \code{x}
 #'  must be a named vector. For the cited examples, \code{x} must be given
 #'  as follows \code{c(p="1", theta="alpha", theta="beta")}. Note the repeated name \code{theta} which must be provided for every component of the list \code{theta} by which a
-#'  differerentiation is required.
+#'  differentiation is required.
 #' @param env An environment where the symbols and functions are searched for.
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
 #'  \code{environment(f)} if \code{f} is a function. For primitive function,
@@ -30,7 +30,7 @@
 #' @param use.D An optional logical (default FALSE), indicates if base::D()
 #'  must be used for differentiation of basic expressions.
 #' @param cache.exp An optional logical (default TRUE), indicates if
-#'  final expression must be optimized with cached subexpressions.
+#'  final expression must be optimized with cached sub-expressions.
 #'  If enabled, repeated calculations are made only once and their
 #'  results stored in cache variables which are then reused.
 #' @param nderiv An optional integer vector of derivative orders to calculate.
@@ -96,10 +96,11 @@
 #'      be differentiated (cf. examples section).
 #'  \item in case of multiple derivatives (e.g. gradient and hessian calculation),
 #'      caching can make calculation economies for both
+#'  \item Starting from v4.0, some matrix calculus operations are possible (contribution of Andreas Rappold). See an example hereafter for differentiation of the inverse of 2x2 matrix and whose elements depend on variable of differentiation \code{x}.
 #' }
 #'
-#' Two work environments \code{drule} and \code{simplifications} are
-#' exported in the package namescape.
+#' Two environments \code{drule} and \code{simplifications} are
+#' exported in the package's NAMESPACE.
 #' As their names indicate, they contain tables of derivative and
 #' simplification rules.
 #' To see the list of defined rules do \code{ls(drule)}.
@@ -109,6 +110,10 @@
 #' per argument. See \code{drule$log} for an example to follow.
 #' After adding \code{sinpi} you can differentiate expressions like
 #' \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
+#' 
+#' Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replace by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
+#' \cr
+#' Another v4.0 novelty in rule's syntax is a possible use of optional parameter \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how to treat missing arguments. By default, i.e. in absence of this parameter or set to FALSE, missing arguments were replaced by their default values. Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
 #'
 #' NB. In \code{abs()} and \code{sign()} function, singularity treatment
 #'     at point 0 is left to user's care.
@@ -183,7 +188,7 @@
 #' }
 #' # c(xx = 2 * xx, yy = 2 * yy)
 #'
-#' # Automatic differentiation (AD), note itermediate variable 'd' assignment
+#' # Automatic differentiation (AD), note intermediate variable 'd' assignment
 #' \dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x", cache.exp=FALSE)}
 #' #{
 #' #   d <- ((x - m)/s)^2
@@ -193,13 +198,13 @@
 #'
 #' # Custom derivation rule
 #' \dontrun{
-#'   myfun <- function(x, y=TRUE) NULL # do something usefull
+#'   myfun <- function(x, y=TRUE) NULL # do something useful
 #'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
 #'   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
 #'   Deriv(myfun(z^2, FALSE), "z")
 #'   # 2 * (z * dmyfun(z^2, FALSE))
 #' }
-#' # Differentiantion by list components
+#' # Differentiation by list components
 #' \dontrun{
 #'   theta <- list(m=0.1, sd=2.)
 #'   x <- names(theta)
@@ -209,6 +214,11 @@
 #' #  (x - theta$m)/theta$sd, theta_sd = 2 * (exp(-((x - theta$m)^2/
 #' #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 #' }
+#' # Differentiation in matrix calculus
+#' \dontrun{
+#'  Deriv(~solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)))
+#' }
+
 
 Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c") {
 	tf <- try(f, silent=TRUE)
@@ -229,7 +239,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 	if (is.null(env))
 		env <- .GlobalEnv
 	if (is.null(x)) {
-		# primitive function or function given by a list membr or alike
+		# primitive function or function given by a list member or alike
 		af <- formals(args(f))
 		x <- names(af)
 		rule <- drule[[fch]]
@@ -424,7 +434,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 						dsym$l[[x[ix]]] <- list()
 				}
 			}
-			# collect defined var names (to avoid redifferentiation)
+			# collect defined var names (to avoid re-differentiation)
 			defs <- sapply(args, function(e) if (is.assign(e)) format1(e[[2]]) else "")
 #			alva <- list()
 			last_res <- list()
@@ -434,7 +444,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 				if (is.assign(a)) {
 					if (!is.symbol(a[[2]]))
 						stop(sprintf("In AD mode, don't know how to deal with a non symbol '%s' at lhs", format1(a[[2]])))
-					# put in scache the assignement
+					# put in scache the assignment
 					ach <- format1(a[[2]])
 					for (ix in seq_along(x)) {
 						d_ach <- paste(".", ach, "_", x[ix], sep="")
@@ -621,7 +631,7 @@ drule <- new.env()
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind", "list")
 
 # rule table
-# arithmetics
+# arithmetic
 drule[["*"]] <- alist(e1=e2, e2=e1)
 drule[["^"]] <- alist(e1=e2*e1^(e2-1), e2=e1^e2*log(e1))
 drule[["/"]] <- alist(e1=1/e2, e2=-e1/e2^2)
@@ -678,7 +688,7 @@ drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
 	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
 	log=NULL)
 drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
-drule[["qnorm"]] = alist(p=ifelse(lower.tail, 1, -1)*ifelse(log.p, exp(p), 1)/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
+drule[["qnorm"]] = alist(p=(if(lower.tail) 1 else -1)*(if(log.p) exp(p) else 1)/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
                          mean=1,
                          sd=(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p) - mean)/sd)
 # data mangling

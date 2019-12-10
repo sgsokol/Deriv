@@ -149,6 +149,12 @@ test_that("probability densities", {
    expect_equal_deriv(dbinom(5,3,x), 3 * ((3 - 5 * x) * dbinom(5, 2, x)/(1 - x)^2))
    expect_equal_deriv(dnorm(x, m=0.5), -(dnorm(x, 0.5, 1) * (x - 0.5)))
 })
+test_that("normal quantile", {
+   expect_equal_deriv(qnorm(x, mu, lower.tail=FALSE), -(1/dnorm(qnorm(x, mean = mu, sd = 1, lower.tail = FALSE, log.p = FALSE), mean = mu, sd = 1)))
+   expect_equal_deriv(qnorm(x, mu, lower.tail=TRUE), 1/dnorm(qnorm(x, mean = mu, sd = 1, lower.tail = TRUE, log.p = FALSE), mean = mu, sd = 1))
+   expect_equal_deriv(qnorm(x, mu, log.p=TRUE), exp(x)/dnorm(qnorm(x, mean = mu, sd = 1, lower.tail = TRUE, log.p = TRUE), mean = mu, sd = 1))
+   expect_equal_deriv(qnorm(x, mu, log.p=FALSE), 1/dnorm(qnorm(x, mean = mu, sd = 1, lower.tail = TRUE, log.p = FALSE), mean = mu, sd = 1))
+})
 a=0.1
 test_that("chain rule: multiply by a const", {
    expect_equal_deriv(a*x, a)
@@ -168,6 +174,12 @@ test_that("particular cases", {
    expect_equal_deriv(x^n+sin(n*x), n * (cos(n * x) + x^(n - 1)))
    expect_equal_deriv(x*(1-x), 1-2*x)
    expect_equal_deriv(x^x, x^x+x^x*log(x))
+})
+test_that("indexing", {
+   expect_equal_deriv(a[['b']], 0)
+})
+test_that("matrix calculus", {
+   expect_equal_deriv(solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)), -solve(matrix(c(1, x, x^2, x^3), nrow = 2, ncol = 2)) %*% matrix(c(0, 1, 2 * x, 3 * x^2), nrow = 2, ncol = 2, byrow = , dimnames = ) %*% solve(matrix(c(1, x, x^2, x^3), nrow = 2, ncol = 2)))
 })
 
 # test AD and caching

@@ -69,6 +69,21 @@ test_that("term order", {
 test_that("{...; const}", {
    expect_equal_lang({a=x^2; 0}, 0)
 })
+test_that("indexing", {
+   expect_equal_lang(list(a=x, b=y)$a, x)
+   expect_equal_lang(c(a=x, b=y)[["a"]], x)
+   expect_equal_lang(0$a, 0)
+})
+test_that("logical operation", {
+   expect_equal_lang(a || TRUE, TRUE)
+   expect_equal_lang(a || FALSE, a)
+   expect_equal_lang(a && TRUE, a)
+   expect_equal_lang(a && FALSE, FALSE)
+})
+test_that("missing args", {
+   expect_equal_lang(f(a,b,), f(a,b))
+   expect_equal_lang(f(a,c=,b), f(a,c=,b)) # no change must occur
+})
 
 context("expression caching")
 
@@ -94,4 +109,5 @@ test_that("Cache test", {
     }
     ))
 })
+
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

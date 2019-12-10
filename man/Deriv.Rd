@@ -3,7 +3,7 @@
 \name{Deriv}
 \alias{Deriv}
 \alias{drule}
-\title{Symbollic differentiation of an expression or function}
+\title{Symbolic differentiation of an expression or function}
 \usage{
 Deriv(f, x = if (is.function(f)) NULL else all.vars(if (is.character(f))
   parse(text = f) else f), env = if (is.function(f)) environment(f) else
@@ -21,7 +21,7 @@ f can be \itemize{
  \item a right hand side of a formula: \code{~ x**n} or \code{y ~ x**n}
 }}
 
-\item{x}{An optional character vector with variable name(s) with resptect to which
+\item{x}{An optional character vector with variable name(s) with respect to which
 \code{f} must be differentiated. If not provided (i.e. x=NULL), x is
 guessed either from\ code{names(formals(f))} (if \code{f} is a function)
 or from all variables in f in other cases.
@@ -30,7 +30,7 @@ To differentiate expressions including components of lists or vectors, i.e. by e
 variables \code{x}
 must be a named vector. For the cited examples, \code{x} must be given
 as follows \code{c(p="1", theta="alpha", theta="beta")}. Note the repeated name \code{theta} which must be provided for every component of the list \code{theta} by which a
-differerentiation is required.}
+differentiation is required.}
 
 \item{env}{An environment where the symbols and functions are searched for.
 Defaults to \code{parent.frame()} for \code{f} expression and to
@@ -41,7 +41,7 @@ it is set by default to .GlobalEnv}
 must be used for differentiation of basic expressions.}
 
 \item{cache.exp}{An optional logical (default TRUE), indicates if
-final expression must be optimized with cached subexpressions.
+final expression must be optimized with cached sub-expressions.
 If enabled, repeated calculations are made only once and their
 results stored in cache variables which are then reused.}
 
@@ -68,7 +68,7 @@ there are items in \code{x}.}
 }
 }
 \description{
-Symbollic differentiation of an expression or function
+Symbolic differentiation of an expression or function
 }
 \details{
 R already contains two differentiation functions: D and deriv. D does
@@ -103,9 +103,9 @@ need not be self-contained -- you don't need to provide an infinite
 chain of derivatives.
  }
  \item It's easy to add custom entries to the derivatives table, e.g.
-  
+
   \code{drule[["cos"]] <- alist(x=-sin(x))}
-  
+
   The chain rule will be automatically applied if needed.
  \item The output is an executable function, which makes it suitable
      for use in optimization problems.
@@ -113,10 +113,11 @@ chain of derivatives.
      be differentiated (cf. examples section).
  \item in case of multiple derivatives (e.g. gradient and hessian calculation),
      caching can make calculation economies for both
+ \item Starting from v4.0, some matrix calculus operations are possible (contribution of Andreas Rappold). See an example hereafter for differentiation of the inverse of 2x2 matrix and whose elements depend on variable of differentiation \code{x}.
 }
 
-Two work environments \code{drule} and \code{simplifications} are
-exported in the package namescape.
+Two environments \code{drule} and \code{simplifications} are
+exported in the package's NAMESPACE.
 As their names indicate, they contain tables of derivative and
 simplification rules.
 To see the list of defined rules do \code{ls(drule)}.
@@ -127,6 +128,10 @@ per argument. See \code{drule$log} for an example to follow.
 After adding \code{sinpi} you can differentiate expressions like
 \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 
+Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replace by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
+\cr
+Another v4.0 novelty in rule's syntax is a possible use of optional parameter \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how to treat missing arguments. By default, i.e. in absence of this parameter or set to FALSE, missing arguments were replaced by their default values. Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
+
 NB. In \code{abs()} and \code{sign()} function, singularity treatment
     at point 0 is left to user's care.
     For example, if you need NA at singular points, you can define the following:
@@ -136,7 +141,7 @@ NB. In \code{abs()} and \code{sign()} function, singularity treatment
 NB2. In Bessel functions, derivatives are calculated only by the first argument,
      not by the \code{nu} argument which is supposed to be constant.
 
-NB3. There is a side effect with vector length. E.g. in 
+NB3. There is a side effect with vector length. E.g. in
      \code{Deriv(~a+b*x, c("a", "b"))} the result is \code{c(a = 1, b = x)}.
      To avoid the difference in lengths of a and b components (when x is a vector),
      one can use an optional parameter \code{combine}
@@ -199,8 +204,8 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 }
 # c(xx = 2 * xx, yy = 2 * yy)
 
-# Automatic differentiation (AD), note itermediate variable 'd' assignment
-\dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x")}
+# Automatic differentiation (AD), note intermediate variable 'd' assignment
+\dontrun{Deriv(~{d <- ((x-m)/s)^2; exp(-0.5*d)}, "x", cache.exp=FALSE)}
 #{
 #   d <- ((x - m)/s)^2
 #   .d_x <- 2 * ((x - m)/s^2)
@@ -209,13 +214,13 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 
 # Custom derivation rule
 \dontrun{
-  myfun <- function(x, y=TRUE) NULL # do something usefull
+  myfun <- function(x, y=TRUE) NULL # do something useful
   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
   Deriv(myfun(z^2, FALSE), "z")
   # 2 * (z * dmyfun(z^2, FALSE))
 }
-# Differentiantion by list components
+# Differentiation by list components
 \dontrun{
   theta <- list(m=0.1, sd=2.)
   x <- names(theta)
@@ -225,11 +230,12 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 #  (x - theta$m)/theta$sd, theta_sd = 2 * (exp(-((x - theta$m)^2/
 #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
 }
+# Differentiation in matrix calculus
+\dontrun{
+ Deriv(~solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)))
+}
 }
 \author{
 Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 }
-\concept{
-symbollic differentiation
-}
-
+\concept{symbolic differentiation}
