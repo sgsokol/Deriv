@@ -1,3 +1,9 @@
+Version 4.0.1
+=============
+
+* 2020-08-20
+ - added differentiation with respect to 'expr' in a language construct 'with(data, expr)' (due to Oscar Garcia <garcia [at] dasometrics (dot] net>)
+
 Version 4.0
 ===========
 

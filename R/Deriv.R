@@ -513,6 +513,9 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		} else if(stch == "ifelse") {
 			return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
 				Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
+		} else if(stch == "with") {
+#browser()
+			return(Simplify(call("with", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache))))
 		} else if (stch == "rep") {
 #browser()
 			# 'x' argument is named or positional?
@@ -703,3 +706,4 @@ drule[["det"]] <- alist(x=det(x)*sum(diag(as.matrix(solve(x, .d_x)))))
 drule[["solve"]] <- alist(`_missing`=TRUE, a=-solve(a)%*%.d_a%*%solve(a, b),
                          b=solve(a, .d_b))
 drule[["diag"]] = alist(`_missing`=TRUE, x=if (!is.matrix(x) && length(x) == 1 && arg_missing(nrow) && arg_missing(ncol)) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names))
+

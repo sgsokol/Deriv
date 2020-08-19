@@ -182,6 +182,11 @@ test_that("matrix calculus", {
    expect_equal_deriv(solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)), -solve(matrix(c(1, x, x^2, x^3), nrow = 2, ncol = 2)) %*% matrix(c(0, 1, 2 * x, 3 * x^2), nrow = 2, ncol = 2, byrow = , dimnames = ) %*% solve(matrix(c(1, x, x^2, x^3), nrow = 2, ncol = 2)))
 })
 
+test_that("language constructs", {
+   expect_equal_deriv(ifelse(x>0, x^2, x^3), ifelse(x>0, 2*x, 3*x^2))
+   expect_equal_deriv(with(list(c=2), x^c), with(list(c = 2), c * x^(c - 1)))
+})
+
 # test AD and caching
 # gaussian function
 g <- function(x, m=0, s=1) exp(-0.5*(x-m)^2/s^2)/s/sqrt(2*pi)
