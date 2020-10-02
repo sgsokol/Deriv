@@ -183,8 +183,8 @@ test_that("matrix calculus", {
 })
 
 test_that("language constructs", {
-   expect_equal_deriv(ifelse(x>0, x^2, x^3), ifelse(x>0, 2*x, 3*x^2))
-   expect_equal_deriv(with(list(c=2), x^c), with(list(c = 2), c * x^(c - 1)))
+   expect_equal_deriv(ifelse(x>0, x^2, x^3), ifelse(test=x>0, yes=2*x, no=3*x^2))
+   expect_equal_deriv(with(list(c=2), x^c), with(data=list(c = 2), expr=c * x^(c - 1)))
 })
 
 # test AD and caching
@@ -316,6 +316,24 @@ theta <- list(m=0.1, sd=2.)
 x <- names(theta)
 names(x)=rep("theta", length(theta))
 
+# GMM example
+set.seed(777)
+ncomp=2
+a=runif(ncomp)
+a=a/sum(a) # amplitude or weight of each component
+m=rnorm(ncomp) # mean
+s=runif(ncomp) # sd
+# two column matrix of probabilities: one row per x value, one column per component
+pn=function(x, a, m, s, log=FALSE) {
+  n=length(a)
+  structure(vapply(seq(n), function(i) a[i]*dnorm(x, m[i], s[i], log),
+    double(length(x))), dim=c(length(x), n))
+}
+p=function(x, a, m, s) rowSums(pn(x, a, m, s)) # overall probability
+dp=Deriv(p, "x")
+
+
+
 test_that("doc examples", {
    expect_equal_format1(Deriv(fsq), function (x) 2 * x)
    expect_equal_format1(Deriv(fsc), function (x, y) c(x = cos(x) * cos(y), y = -(sin(x) * sin(y))))
@@ -325,11 +343,12 @@ test_that("doc examples", {
    expect_equal(Deriv(expression(sin(x^2) * y), "x"), expression(2 * (x * y * cos(x^2))))
    expect_equal(Deriv("sin(x^2) * y", "x"), "2 * (x * y * cos(x^2))")
    expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
-   expect_equal(Deriv(myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
+   expect_equal(Deriv(~myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
    expect_equal(Deriv(~exp(-(x-theta$m)**2/(2*theta$sd)), x, cache.exp=FALSE),
     quote(c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) * (x - theta$m)/theta$sd, 
     theta_sd = 2 * (exp(-((x - theta$m)^2/(2 * theta$sd))) * 
         (x - theta$m)^2/(2 * theta$sd)^2))))
+   expect_equal(dp(0, a, m, s), -0.9547048, tolerance=1.e-6)
 })
 drule[["myfun"]] <- NULL
 
@@ -339,8 +358,6 @@ g = function(f) Deriv(f)
 test_that("renaming primitive", {
    expect_identical(g(f), Deriv(cos))
 })
-g(cos)
-Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)
 
 # test returning a constant vector of length > 1 and c()-argument  (issues #14 and #15)
 f <- function(x, y) x + y
@@ -352,3 +369,5 @@ test_that("multivar diff", {
    expect_identical(Deriv(f), fd)
    expect_equal(Deriv(f2, cache=FALSE), function (x, y) c(x = c(2, 0) * c(x, y), y = c(0, 2) * c(x, y)))
 })
+
+Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)

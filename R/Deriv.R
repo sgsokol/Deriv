@@ -142,6 +142,10 @@
 #'      Instead, one should modify the previous call to explicitly use a constant vector
 #'      of appropriate length:
 #'      \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
+#' NB4. Differentiation of \code{*apply()} family (available starting from v4.1) is
+#'      done only on the body of the \code{FUN} argument. It implies that this
+#'      body must use the same variable names as in \code{x} and they must not
+#'      appear in \code{FUN}s arguments (cf. GMM example).
 #'
 #' @author Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 #' @examples
@@ -196,14 +200,15 @@
 #' #   -(0.5 * (.d_x * exp(-(0.5 * d))))
 #' #}
 #'
-#' # Custom derivation rule
+#' # Custom differentiation rule
 #' \dontrun{
 #'   myfun <- function(x, y=TRUE) NULL # do something useful
 #'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
-#'   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
-#'   Deriv(myfun(z^2, FALSE), "z")
+#'   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical => no derivate
+#'   Deriv(~myfun(z^2, FALSE), "z")
 #'   # 2 * (z * dmyfun(z^2, FALSE))
 #' }
+#'
 #' # Differentiation by list components
 #' \dontrun{
 #'   theta <- list(m=0.1, sd=2.)
@@ -218,11 +223,34 @@
 #' \dontrun{
 #'  Deriv(~solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)))
 #' }
-
+#'
+#' # Two component Gaussian mixture model (GMM) example
+#' \dontrun{
+#' # define GMM probability density function -> p(x, ...)
+#' ncomp=2
+#' a=runif(ncomp)
+#' a=a/sum(a) # amplitude or weight of each component
+#' m=rnorm(ncomp) # mean
+#' s=runif(ncomp) # sd
+#' # two column matrix of probabilities: one row per x value, one column per component
+#' pn=function(x, a, m, s, log=FALSE) {
+#'   n=length(a)
+#'   structure(vapply(seq(n), function(i) a[i]*dnorm(x, m[i], s[i], log),
+#'     double(length(x))), dim=c(length(x), n))
+#' }
+#' p=function(x, a, m, s) rowSums(pn(x, a, m, s)) # overall probability
+#' dp=Deriv(p, "x")
+#' # plot density and its derivative
+#' xp=seq(min(m-2*s), max(m+2*s), length.out=200)
+#' matplot(xp, cbind(p(xp, a, m, s), dp(xp, a, m, s)),
+#'    xlab="x", ylab="p, dp/dx", type="l", main="Two component GMM")
+#' }
 
 Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c") {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
+	if (is.null(f))
+		return(NULL)
 	if (is.primitive(f)) {
 		# get the true function name (may be after renaming in caller env like f=cos)
 		fch=sub('^\\.Primitive\\("(.+)"\\)', "\\1", format1(f))
@@ -240,7 +268,11 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		env <- .GlobalEnv
 	if (is.null(x)) {
 		# primitive function or function given by a list member or alike
-		af <- formals(args(f))
+    if (is.function(f)) {
+			af <- formals(args(f))
+		} else {
+			af <- formals(f)
+		}
 		x <- names(af)
 		rule <- drule[[fch]]
 		if (!is.null(rule)) {
@@ -253,6 +285,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 			x=unlist(x)
 		}
 		if (is.function(f)) {
+#browser()
 			rmget=mget(fch, mode="function", envir=env, inherits=TRUE, ifnotfound=NA)
 			if (!is.function(rmget[[fch]])) {
 				# no function with name stored in fch => replace it by its body
@@ -270,7 +303,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		fd <- NULL
 	}
 	# prepare fd (a call to differentiate)
-	# and pack_res (a cal to evaluate and return as result)
+	# and pack_res (a call to evaluate and return as result)
 	if (!is.null(fd)) {
 		; # we are already set
 	} else if (is.character(f)) {
@@ -281,7 +314,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 #browser()
 		b <- body(f)
 		if ((is.call(b) && (b[[1]] == as.symbol(".Internal") || b[[1]] == as.symbol(".External") || b[[1]] == as.symbol(".Call"))) || (is.null(b) && (is.primitive(f)) || !is.null(drule[[fch]]))) {
-			if (fch %in% dlin || !is.null(drule[[fch]])) {
+			if (fch %in% dlin || fch %in% names(dplin) || !is.null(drule[[fch]])) {
 				arg <- lapply(names(formals(args(f))), as.symbol)
 				fd <- as.call(c(as.symbol(fch), arg))
 				pack_res <- as.call(alist(as.function, c(formals(args(f)), list(res)), envir=env))
@@ -357,6 +390,8 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 
 # workhorse function doing the main work of differentiation
 Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
+	if (is.null(st))
+		return(NULL)
 	stch <- format1(if (is.call(st)) st[[1]] else st)
 	# Make x scalar and wrap results in a c() call if length(x) > 1
 	iel=which("..." == x)
@@ -417,6 +452,15 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			# differentiate all arguments then pass them to the function
 			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
 			return(Simplify_(as.call(c(st[[1]], dargs)), scache))
+		} else if (stch %in% names(dplin)) {
+browser()
+			# partial linear case
+			# differentiate part of arguments then pass them to the function
+			stmc=match.call(args(stch), st)
+			args <- as.list(stmc)[-1]
+			nmd=dplin[[stch]]
+			stmc[nmd]=lapply(as.list(stmc)[nmd], Deriv_, x, env, use.D, dsym, scache)
+			return(Simplify_(stmc, scache))
 		}
 		nb_args=length(st)-1
 		# special cases: out of rule table or args(stch) -> NULL
@@ -510,23 +554,9 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		} else if (stch == "(") {
 #browser()
 			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache=scache))
-		} else if(stch == "ifelse") {
-			return(Simplify(call("ifelse", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
-				Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
-		} else if(stch == "with") {
-#browser()
-			return(Simplify(call("with", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache))))
-		} else if (stch == "rep") {
-#browser()
-			# 'x' argument is named or positional?
-			i=if ("x" %in% names(st)) "x" else 2
-			dst=st
-			dst[[i]]=Simplify(Deriv_(st[[i]], x, env, use.D, dsym, scache), scache=scache)
-			return(dst)
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache)
-				else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
 					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
 		}
@@ -550,8 +580,14 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 				stop(sprintf("Function '%s()' is not in derivative table", stch))
 			}
 			mc <- match.call(ff, st)
-			st <- Simplify_(do.call("substitute", list(bf, as.list(mc)[-1])), scache)
-			return(Simplify(Deriv_(st, x, env, use.D, dsym, scache)))
+			af=formals(args(ff)) # formal args
+			# update af with mc to get actual arguments -> aa
+			aa=modifyList(af, as.list(mc)[-1])
+			st <- Simplify_(do.call("substitute", list(bf, aa)), scache)
+			dst <- Deriv_(st, x, env, use.D, dsym, scache)
+			#dst <- Simplify(do.call("substitute", list(dst, aa)), scache) # missed arguments can appear from drule
+                        # wrap new body in f_d_x(), add it to drule and place a call to it
+			return(dst)
 		}
 		# there is a rule!
 		if (use.D) {
@@ -575,10 +611,10 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		} else {
 			aa <- modifyList(da, mc) # all arguments with actual values
 		}
+#browser()
 		rule$`_missing`=NULL
 		# actualize the rule with actual arguments
 		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
-#browser()
 		# which arguments can be differentiated?
 		iad <- which(!sapply(rule, is.null))
 		rule <- rule[iad]
@@ -633,6 +669,14 @@ drule <- new.env()
 # linear functions, i.e. d(f(x))/dx == f(d(arg)/dx)
 dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind", "list")
 
+# partially linear functions, i.e. linear only on a subset of arguments
+# here, function name points to a vector of argument names (or indexes in a full call) which we have to differentiate
+dplin=list(apply="FUN", lapply="FUN", sapply="FUN", vapply="FUN", lapply="FUN",
+	ifelse=c("yes", "no"), with="expr", "function"=3L,
+	rep="x", rep.int="x", rep_len="x",
+	rowSums="x", colSums="x", rowMeans="x", colMeans="x", structure=".Data"
+)
+
 # rule table
 # arithmetic
 drule[["*"]] <- alist(e1=e2, e2=e1)
@@ -686,18 +730,15 @@ drule[["beta"]] <- alist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(d
 drule[["lbeta"]] <- alist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
 drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1), log=NULL)
-drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
-	mean=(x-mean)/sd^2*if (log) 1 else dnorm(x, mean, sd),
-	sd=(((x - mean)/sd)^2 - 1)/sd * if (log) 1 else dnorm(x, mean, sd),
+drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
+	mean=(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
+	sd=(((x - mean)/sd)^2 - 1)/sd * (if (log) 1 else dnorm(x, mean, sd)),
 	log=NULL)
 drule[["pnorm"]] <- alist(q=dnorm(q, mean, sd)*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), mean=dnorm(q, mean, sd)*(if (lower.tail) -1 else 1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), sd=dnorm(q, mean, sd)*(mean-q)/sd*(if (lower.tail) 1 else -1)/(if (log.p) pnorm(q, mean, sd, lower.tail) else 1), lower.tail=NULL, log.p=NULL)
 drule[["qnorm"]] = alist(p=(if(lower.tail) 1 else -1)*(if(log.p) exp(p) else 1)/dnorm(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p), mean=mean, sd=sd),
                          mean=1,
                          sd=(qnorm(p, mean=mean, sd=sd, lower.tail=lower.tail, log.p=log.p) - mean)/sd)
 # data mangling
-#drule[["rep"]] <- alist(x=rep(1, ...)) # cannot handle '...' yet
-drule[["rep.int"]] <- alist(x=rep.int(1, times), times=NULL)
-drule[["rep_len"]] <- alist(x=rep_len(1, length.out), length.out=NULL)
 drule[["length"]] <- alist() # derivative is always 0
 # matrix calculus
 drule[["matrix"]] <- alist(`_missing`=TRUE, data=matrix(.d_data, nrow=nrow, ncol=ncol, byrow=byrow, dimnames=dimnames))
@@ -705,5 +746,5 @@ drule[["%*%"]] <- alist(x=.d_x%*%y, y=x%*%.d_y)
 drule[["det"]] <- alist(x=det(x)*sum(diag(as.matrix(solve(x, .d_x)))))
 drule[["solve"]] <- alist(`_missing`=TRUE, a=-solve(a)%*%.d_a%*%solve(a, b),
                          b=solve(a, .d_b))
-drule[["diag"]] = alist(`_missing`=TRUE, x=if (!is.matrix(x) && length(x) == 1 && arg_missing(nrow) && arg_missing(ncol)) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names))
+drule[["diag"]] = alist(`_missing`=TRUE, x=(if (!is.matrix(x) && length(x) == 1 && arg_missing(nrow) && arg_missing(ncol)) matrix(0, nrow=x, ncol=x) else diag(x=.d_x, nrow, ncol, names=names)))
 

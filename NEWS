@@ -1,3 +1,21 @@
+Version 4.1.0
+=============
+
+* 2020-10-02
+ - added new category of functions: partially linear (i.e. linear on a subset of their arguments)
+ - rewritten with(data){expr}, ifelse(test,yes,no), rep(x,...), rep.int(x,n) and rep_len(x,n) cases as partially linear functions
+ - added *apply() family of functions (differentiation of FUN argument)
+ - added rowSums(), colSums(), rowMeans(), colMeans()
+ - added differentiation of anonymous function bodies
+ - added example and test on 2 component Gaussian mixture model.
+ - fixed NULL entry to Deriv()
+ - fixed missed x fulfillment for calls just by function name
+ - fixed format1() for function formatting
+ - fixed Simplify() evaluating stop() in expressions
+ - fixed Simplify() omitting missed arguments in '[' calls
+ - fixed Cache() placing and using local function variables out of their scope
+ 
+
 Version 4.0.1
 =============
 

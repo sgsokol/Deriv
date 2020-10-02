@@ -5,10 +5,16 @@
 \alias{drule}
 \title{Symbolic differentiation of an expression or function}
 \usage{
-Deriv(f, x = if (is.function(f)) NULL else all.vars(if (is.character(f))
-  parse(text = f) else f), env = if (is.function(f)) environment(f) else
-  parent.frame(), use.D = FALSE, cache.exp = TRUE, nderiv = NULL,
-  combine = "c")
+Deriv(
+  f,
+  x = if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text = f) else
+    f),
+  env = if (is.function(f)) environment(f) else parent.frame(),
+  use.D = FALSE,
+  cache.exp = TRUE,
+  nderiv = NULL,
+  combine = "c"
+)
 }
 \arguments{
 \item{f}{An expression or function to be differentiated.
@@ -159,6 +165,10 @@ NB3. There is a side effect with vector length. E.g. in
      Instead, one should modify the previous call to explicitly use a constant vector
      of appropriate length:
      \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
+NB4. Differentiation of \code{*apply()} family (available starting from v4.1) is
+     done only on the body of the \code{FUN} argument. It implies that this
+     body must use the same variable names as in \code{x} and they must not
+     appear in \code{FUN}s arguments (cf. GMM example).
 }
 \examples{
 
@@ -212,14 +222,15 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 #   -(0.5 * (.d_x * exp(-(0.5 * d))))
 #}
 
-# Custom derivation rule
+# Custom differentiation rule
 \dontrun{
   myfun <- function(x, y=TRUE) NULL # do something useful
   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
-  drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical
+  drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical => no derivate
   Deriv(myfun(z^2, FALSE), "z")
   # 2 * (z * dmyfun(z^2, FALSE))
 }
+
 # Differentiation by list components
 \dontrun{
   theta <- list(m=0.1, sd=2.)
@@ -233,6 +244,28 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
 # Differentiation in matrix calculus
 \dontrun{
  Deriv(~solve(matrix(c(1, x, x**2, x**3), nrow=2, ncol=2)))
+}
+
+# Two component Gaussian mixture model (GMM) example
+\dontrun{
+# define GMM probability density function -> p(x, ...)
+ncomp=2
+a=runif(ncomp)
+a=a/sum(a) # amplitude or weight of each component
+m=rnorm(ncomp) # mean
+s=runif(ncomp) # sd
+# two column matrix of probabilities: one row per x value, one column per component
+pn=function(x, a, m, s) {
+  n=length(a)
+  structure(vapply(seq(n), function(i) a[i]*dnorm(x, m[i], s[i]),
+    double(length(x))), dim=c(length(x), n))
+}
+p=function(x, a, m, s) rowSums(pn(x, a, m, s)) # overall probability
+dp=Deriv(p, "x")
+# plot density and its derivative
+xp=seq(min(m-2*s), max(m+2*s), length.out=200)
+matplot(xp, cbind(p(xp, a, m, s), dp(xp, a, m, s)),
+   xlab="x", ylab="p, dp/dx", type="l", main="Two component GMM")
 }
 }
 \author{

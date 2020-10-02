@@ -60,12 +60,12 @@ Simplify <- function(expr, env=parent.frame(), scache=new.env()) {
 #' @return A character vector of length 1 contrary to base::format() which
 #'  can split its output over several lines.
 format1 <- function(expr) {
-	res <- if (is.symbol(expr)) as.character(expr) else if (is.call(expr) && expr[[1]]==as.symbol("{")) sapply(as.list(expr), format1) else format(expr)
+	res <- if (is.symbol(expr)) as.character(expr) else if (is.call(expr) && expr[[1]]==as.symbol("{")) c(sapply(as.list(expr), format1), "}") else format(expr)
 	n <- length(res)
 	if (n > 1) {
-		if (res[1] == "{" && n > 2) {
+		if (endsWith(res[1], "{") && n > 2) {
 			b <- paste0(res[-1], collapse="; ")
-			res <- paste0("{", b, "}", collapse="")
+			res <- paste0("{", b, collapse="")
 		} else {
 			res <- paste0(res, collapse=" ")
 		}
@@ -87,6 +87,10 @@ Simplify_ <- function(expr, scache) {
 			}
 		}
 		che1 <- as.character(expr[[1L]])
+		if (che1 == "stop") {
+			scache$l[[che]] <- expr
+			return(expr)
+		}
 		if (che1 == "arg_missing" || ((che1 == "::" || che1 == ":::") && as.character(expr[[2L]]) == "Deriv" && as.character(expr[[3L]][[1L]]) == "arg_missing")) {
 			res <- eval(expr)
 			scache$l[[che]] <- res
@@ -94,8 +98,12 @@ Simplify_ <- function(expr, scache) {
 		}
 		scache$l[[che]] <- NA # token holder
 #cat("simp expr=", format1(expr), "\n", sep="")
-		# skip missing unnamed args
-		imi <- sapply(expr, function(it) identical(nchar(it), 0L))
+		# skip missing unnamed args but for "[" call
+		if (che1 != "[") {
+			imi <- sapply(expr, function(it) identical(nchar(it), 0L))
+		} else {
+			imi=rep(FALSE, length(expr))
+		}
 		if (any(imi) && length(nms <- names(expr)) > 0L)
 			imi <- imi & sapply(nms, function(it) identical(nchar(it), 0L))
 		expr <- as.call(as.list(expr)[!imi])
@@ -778,7 +786,7 @@ Lincomb <- function(expr) {
 	}
 }
 
-# return an environement in wich stored subexpressions with
+# return an environement in which stored subexpressions with
 # an index giving the position of each subexpression in the
 # whole statement st ("rhs" entry). Index is given as a string i1.i2.i3...
 # where the integeres iN refer to st[[i2]][[i3]][[...]]
@@ -790,14 +798,18 @@ Leaves <- function(st, ind="1", res=new.env()) {
 		res$rhs <- list()
 		res$lhs <- list()
 		res$def <- list() # store definitions by asignments
-		res[["{"]] <- list()
 	}
 	if (is.call(st)) {
-		if (st[[1]] != as.symbol("<-") && st[[1]] != as.symbol("=")) {
-			res$rhs[[ind]] <- format1(st)
-			if (st[[1]] == as.symbol("{")) {
-				res[["{"]] <- append(res[["{"]], ind)
+		stch=as.character(st[[1]])
+		if (stch != "<-" && stch != "=") {
+			if (stch == "function") {
+#browser()
+				st[[3L]]=Cache(st[[3L]])
+				res$rhs[[ind]] <- format1(st)
+				res$st=st
+				return(res)
 			}
+			res$rhs[[ind]] <- format1(st)
 		} else {
 			if (!is.null(res$lhs[[ind]]))
 				stop("Re-assignment is not supported yet in caching.")
@@ -811,8 +823,9 @@ Leaves <- function(st, ind="1", res=new.env()) {
 			#	return(res)
 		}
 		args <- as.list(st)[-1]
-		l <- lapply(seq_along(args), function(i) Leaves(args[[i]], paste(ind, i+1, sep="."), res))
+		l <- lapply(seq_along(args), function(i) {Leaves(args[[i]], paste(ind, i+1, sep="."), res); st[[i+1]] <<- res$st})
 	}
+	res$st=st
 	return(res)
 }
 
@@ -825,6 +838,7 @@ ind2call <- function(ind, st="st")
 # prefix is used to form auxiliary variable
 ##' @rdname Simplify
 Cache <- function(st, env=Leaves(st), prefix="") {
+	st=env$st
 	stch <- if (is.call(st)) format1(st[[1]]) else ""
 	env$lhs <- unlist(env$lhs)
 	#if (stch == "<-" || stch == "=") {
@@ -833,7 +847,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	#	return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache, env=env))))
 	#}
 	alva <- all.vars(st)
-	p <- grep(sprintf("^%s.e[0-9]+", prefix), alva, value=T)
+	p <- grep(sprintf("^%s.e[0-9]+", prefix), alva, value=TRUE)
 	if (nchar(prefix) == 0 && length(p) > 0) {
 		prefix <- max(p)
 	}
@@ -1122,6 +1136,7 @@ assign("besselK", `Simplify.bessel`, envir=simplifications)
 assign("{", `Simplify.{`, envir=simplifications)
 assign("%*%", `Simplify.%*%`, envir=simplifications)
 assign("$", `Simplify.$`, envir=simplifications)
+assign("[", `Simplify.[`, envir=simplifications)
 assign("[[", `Simplify.[[`, envir=simplifications)
 assign("||", `Simplify.||`, envir=simplifications)
 assign("&&", `Simplify.&&`, envir=simplifications)
