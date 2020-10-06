@@ -453,7 +453,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
 			return(Simplify_(as.call(c(st[[1]], dargs)), scache))
 		} else if (stch %in% names(dplin)) {
-browser()
+#browser()
 			# partial linear case
 			# differentiate part of arguments then pass them to the function
 			stmc=match.call(args(stch), st)
