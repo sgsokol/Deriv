@@ -1,7 +1,9 @@
 Version 4.1.1
 =============
 
-* 2020-11-02
+* 2020-10-26
+ - fixed formatting some '{...}' expressions leading to wrong simplifications and hence wrong results (reported by Bertrand KOEBEL, Strasbourg University, France)
+ - added a simplification case for '{...}' expressions
  - fixed left browser() call
 
 Version 4.1.0

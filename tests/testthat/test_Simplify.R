@@ -66,8 +66,9 @@ test_that("term order", {
    expect_equal_lang(1+a, 1+a) # no change must occur
    expect_equal_lang(a+1, 1+a)
 })
-test_that("{...; const}", {
+test_that("{...}", {
    expect_equal_lang({a=x^2; 0}, 0)
+   expect_equal_lang(2*{x}, 2*x)
 })
 test_that("indexing", {
    expect_equal_lang(list(a=x, b=y)$a, x)

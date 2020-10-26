@@ -65,7 +65,7 @@ format1 <- function(expr) {
 	if (n > 1) {
 		if (endsWith(res[1], "{") && n > 2) {
 			b <- paste0(res[-1], collapse="; ")
-			res <- paste0("{", b, collapse="")
+			res <- paste0(res[1], b, collapse="")
 		} else {
 			res <- paste0(res, collapse=" ")
 		}
@@ -570,13 +570,18 @@ Simplify.bessel <- function(expr, scache=NULL) {
 	expr
 }
 `Simplify.{` <- function(expr, scache=NULL) {
-	# if the last expression is a constant just return it
 	n <- length(expr)
-	la <- expr[[n]]
-	if (is.conuloch(la)) {
-		expr <- la
+	# if only one expression, return it
+	if (n == 2) {
+		expr <- expr[[n]]
+	} else {
+		# if the last expression is a constant just return it
+		la <- expr[[n]]
+		if (is.conuloch(la)) {
+			expr <- la
+		}
+		expr
 	}
-	expr
 }
 `Simplify.%*%` <- function(expr, scache=NULL)
 {
