@@ -1,3 +1,15 @@
+Version 4.1.3
+=============
+
+* 2021-02-24
+ - added 'drule=drule' argument to 'Deriv()' for easier derivative rule customization
+
+Version 4.1.2
+=============
+
+* 2020-12-10
+ - added 'check.environment=FALSE' to tests on functions (requested by CRAN team to conform to new R-devel feature)
+
 Version 4.1.1
 =============
 
@@ -5,7 +17,6 @@ Version 4.1.1
  - fixed formatting some '{...}' expressions leading to wrong simplifications and hence wrong results (reported by Bertrand KOEBEL, Strasbourg University, France)
  - added a simplification case for '{...}' expressions
  - fixed left browser() call
-
 Version 4.1.0
 =============
 

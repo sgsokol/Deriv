@@ -13,7 +13,8 @@ Deriv(
   use.D = FALSE,
   cache.exp = TRUE,
   nderiv = NULL,
-  combine = "c"
+  combine = "c",
+  drule = Deriv::drule
 )
 }
 \arguments{
@@ -64,6 +65,8 @@ partial derivatives. Default value is "c" but other functions can be
 used, e.g. "cbind" (cf. Details, NB3), "list" or user defined ones. It must
 accept any number of arguments or at least the same number of arguments as
 there are items in \code{x}.}
+
+\item{drule}{An optional environment-like containing derivative rules (cf. Details for syntax rules).}
 }
 \value{
 \itemize{
@@ -227,7 +230,7 @@ Deriv("fc(x)", "x", cache.exp=FALSE)
   myfun <- function(x, y=TRUE) NULL # do something useful
   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical => no derivate
-  Deriv(myfun(z^2, FALSE), "z")
+  Deriv(~myfun(z^2, FALSE), "z", drule=drule)
   # 2 * (z * dmyfun(z^2, FALSE))
 }
 
@@ -255,9 +258,9 @@ a=a/sum(a) # amplitude or weight of each component
 m=rnorm(ncomp) # mean
 s=runif(ncomp) # sd
 # two column matrix of probabilities: one row per x value, one column per component
-pn=function(x, a, m, s) {
+pn=function(x, a, m, s, log=FALSE) {
   n=length(a)
-  structure(vapply(seq(n), function(i) a[i]*dnorm(x, m[i], s[i]),
+  structure(vapply(seq(n), function(i) a[i]*dnorm(x, m[i], s[i], log),
     double(length(x))), dim=c(length(x), n))
 }
 p=function(x, a, m, s) rowSums(pn(x, a, m, s)) # overall probability

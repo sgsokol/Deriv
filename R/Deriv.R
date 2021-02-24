@@ -45,6 +45,7 @@
 #'  used, e.g. "cbind" (cf. Details, NB3), "list" or user defined ones. It must
 #'  accept any number of arguments or at least the same number of arguments as
 #'  there are items in \code{x}.
+#' @param drule An optional environment-like containing derivative rules (cf. Details for syntax rules).
 #'
 #' @return \itemize{
 #'  \item a function if \code{f} is a function
@@ -111,7 +112,7 @@
 #' After adding \code{sinpi} you can differentiate expressions like
 #' \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 #' 
-#' Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replace by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
+#' Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replaced by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
 #' \cr
 #' Another v4.0 novelty in rule's syntax is a possible use of optional parameter \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how to treat missing arguments. By default, i.e. in absence of this parameter or set to FALSE, missing arguments were replaced by their default values. Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
 #'
@@ -142,10 +143,20 @@
 #'      Instead, one should modify the previous call to explicitly use a constant vector
 #'      of appropriate length:
 #'      \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
+#'
 #' NB4. Differentiation of \code{*apply()} family (available starting from v4.1) is
 #'      done only on the body of the \code{FUN} argument. It implies that this
 #'      body must use the same variable names as in \code{x} and they must not
 #'      appear in \code{FUN}s arguments (cf. GMM example).
+#'
+#' NB5. Expressions are differentiated as scalar ones. However in some cases, obtained result
+#'      remains valid if the variable of differentiation is a vector. This is just a coincidence.
+#'      If you need to differentiate by vectors, you can try to write your own differentiation rule.
+#'      For example, derivative of \code{sum(x)} where \code{x} is a vector can be done as:
+#'      \code{vsum=function(x) sum(x)}
+#'      \code{drule[["vsum"]] <- alist(x=rep_len(1, length(x)))} # drule is exported from Deriv namespace
+#'      \code{Deriv(~vsum(a*x), "x", drule=drule)}
+#'      \code{# a * rep_len(1, length(a * x))}
 #'
 #' @author Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 #' @examples
@@ -205,7 +216,7 @@
 #'   myfun <- function(x, y=TRUE) NULL # do something useful
 #'   dmyfun <- function(x, y=TRUE) NULL # myfun derivative by x.
 #'   drule[["myfun"]] <- alist(x=dmyfun(x, y), y=NULL) # y is just a logical => no derivate
-#'   Deriv(~myfun(z^2, FALSE), "z")
+#'   Deriv(~myfun(z^2, FALSE), "z", drule=drule)
 #'   # 2 * (z * dmyfun(z^2, FALSE))
 #' }
 #'
@@ -246,7 +257,7 @@
 #'    xlab="x", ylab="p, dp/dx", type="l", main="Two component GMM")
 #' }
 
-Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c") {
+Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c", drule=Deriv::drule) {
 	tf <- try(f, silent=TRUE)
 	fch <- deparse(substitute(f))
 	if (is.null(f))
@@ -343,7 +354,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		pack_res <- quote(res)
 		#stop("Invalid type of 'f' for differentiation")
 	}
-	res <- Deriv_(fd, x, env, use.D, dsym, scache, combine)
+	res <- Deriv_(fd, x, env, use.D, dsym, scache, combine, drule.=drule)
 	if (!is.null(nderiv)) {
 		# multiple derivatives
 		# prepare their names
@@ -370,7 +381,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 		for (ider in seq_len(maxd)) {
 			if (ider < 2)
 				next
-			res <- Deriv_(res, x, env, use.D, dsym, scache, combine)
+			res <- Deriv_(res, x, env, use.D, dsym, scache, combine, drule.=drule)
 			i <- ider == nderiv
 			lrep[i] <- list(res)
 		}
@@ -389,7 +400,7 @@ Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f
 }
 
 # workhorse function doing the main work of differentiation
-Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
+Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c", drule.=Deriv::drule) {
 	if (is.null(st))
 		return(NULL)
 	stch <- format1(if (is.call(st)) st[[1]] else st)
@@ -411,7 +422,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		# many variables => recursive call on single name
 		# we exclude the case '{' as we put partial derivs inside of '{'
 		# so it can be well optimized by Cache()
-		res <- lapply(seq_along(x), function(ix) Deriv_(st, x[ix], env, use.D, dsym, scache, combine))
+		res <- lapply(seq_along(x), function(ix) Deriv_(st, x[ix], env, use.D, dsym, scache, combine, drule.=drule.))
 		names(res) <- if (is.null(nm_x)) x else ifelse(is.na(nm_x) | nchar(nm_x) == 0, x, paste(nm_x, x, sep="_"));
 		return(as.call(c(as.symbol(combine), res)))
 	}
@@ -425,7 +436,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		return(0)
 	} else if (is_index_expr && !is_sub_x) {
 #browser()
-		st[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache)
+		st[[2]] <- Deriv_(st[[2]], x, env, use.D, dsym, scache, drule.=drule.)
 		if (identical(st[[2]], 0) || identical(st[[2]], 0L)) {
 			return(0)
 		} else {
@@ -450,7 +461,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		if (stch %in% dlin) {
 			# linear case
 			# differentiate all arguments then pass them to the function
-			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
+			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache, drule.=drule.)
 			return(Simplify_(as.call(c(st[[1]], dargs)), scache))
 		} else if (stch %in% names(dplin)) {
 #browser()
@@ -459,7 +470,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			stmc=match.call(args(stch), st)
 			args <- as.list(stmc)[-1]
 			nmd=dplin[[stch]]
-			stmc[nmd]=lapply(as.list(stmc)[nmd], Deriv_, x, env, use.D, dsym, scache)
+			stmc[nmd]=lapply(as.list(stmc)[nmd], Deriv_, x, env, use.D, dsym, scache, drule.=drule.)
 			return(Simplify_(stmc, scache))
 		}
 		nb_args=length(st)-1
@@ -501,7 +512,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 								dsym$l[[x[ix]]][[ach]] <- d_a
 							next
 						}
-						de_a <- Deriv_(a[[3]], x[ix], env, use.D, dsym, scache)
+						de_a <- Deriv_(a[[3]], x[ix], env, use.D, dsym, scache, drule.=drule.)
 						if (get_sub_x[ix])
 							dsym$l[[nm_x[ix]]][[x[ix]]][[ach]] <- de_a
 						else
@@ -532,7 +543,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 						res <- append(res, as.call(c(as.symbol(combine), last_res)))
 					}
 				} else {
-					de_a <- lapply(seq_along(x), function(ix) Deriv_(a, x[ix], env, use.D, dsym, scache))
+					de_a <- lapply(seq_along(x), function(ix) Deriv_(a, x[ix], env, use.D, dsym, scache, drule.=drule.))
 					if (length(x) > 1) {
 						names(de_a) <- ifelse(get_sub_x, paste(nm_x, x, sep="_"), x)
 						res <- append(res, as.call(c(as.symbol(combine), de_a)))
@@ -550,22 +561,22 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 #			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
 			return(Simplify(as.call(res)))
 		} else if (is.uminus(st)) {
-			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache)), scache=scache))
+			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
 		} else if (stch == "(") {
 #browser()
-			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache), scache=scache))
+			return(Simplify(Deriv_(st[[2]], x, env, use.D, dsym, scache, drule.=drule.), scache=scache))
 		} else if (stch == "if") {
 			return(if (nb_args == 2)
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache)), scache=scache) else
-				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache),
-					Deriv_(st[[4]], x, env, use.D, dsym, scache)), scache=scache))
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache) else
+				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache, drule.=drule.),
+					Deriv_(st[[4]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
 		}
-		rule <- drule[[stch]]
+		rule <- drule.[[stch]]
 		if (is.null(rule)) {
 #browser()
 			# no derivative rule for this function
 			# see if its arguments depend on x. If not, just send 0
-			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache)
+			dargs <- lapply(args, Deriv_, x, env, use.D, dsym, scache, drule.=drule.)
 			if (all(sapply(dargs, identical, 0))) {
 				return(0)
 			}
@@ -584,7 +595,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			# update af with mc to get actual arguments -> aa
 			aa=modifyList(af, as.list(mc)[-1])
 			st <- Simplify_(do.call("substitute", list(bf, aa)), scache)
-			dst <- Deriv_(st, x, env, use.D, dsym, scache)
+			dst <- Deriv_(st, x, env, use.D, dsym, scache, drule.=drule.)
 			#dst <- Simplify(do.call("substitute", list(dst, aa)), scache) # missed arguments can appear from drule
                         # wrap new body in f_d_x(), add it to drule and place a call to it
 			return(dst)
@@ -593,7 +604,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 		if (use.D) {
 			return(Simplify(D(st, x), scache=scache))
 		}
-#if (stch == "myfun")
+#if (stch == "vsum")
 #browser()
 		# prepare replacement list
 		da <- try(args(stch), silent=TRUE)
@@ -623,7 +634,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			#warning(sprintf("A call %s cannot be differentiated by the argument '%s'", format1(st), x))
 			return(0)
 		}
-		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache))
+		dargs <- lapply(names(rule), function(nm_a) if (is.null(mc[[nm_a]])) 0 else Deriv_(mc[[nm_a]], x, env, use.D, dsym, scache, drule.=drule.))
 		names(dargs) <- names(rule)
 		ize <- sapply(dargs, identical, 0) | sapply(dargs, identical, matrix(0))
 		dargs <- dargs[!ize]
@@ -657,7 +668,7 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c") {
 			stop(sprintf("Could not retrieve arguments of '%s()'", stch))
 		}
 		st <- do.call("substitute", list(body(ff), args))
-		Deriv_(st, x, env, use.D, dsym, scache)
+		Deriv_(st, x, env, use.D, dsym, scache, drule.=drule.)
 	} else {
 		stop("Invalid type of 'st' argument. It must be constant, symbol or a call.")
 	}

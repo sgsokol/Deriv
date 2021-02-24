@@ -59,7 +59,7 @@ expect_equal_deriv <- function(t, r, nmvar="x") {
 #cat("\nf deriv=", format1(ans), "\n", sep="")
 #cat("\nsimplify=", format1(Simplify(ans)), "\n", sep="")
 #cat("f ref=", format1(f), "\n", sep="")
-   eval(bquote(expect_equal(quote(.(ans)), quote(.(f)))))
+   eval(bquote(expect_equal(quote(.(ans)), quote(.(f)), check.environment=FALSE)))
    # compare with central differences
    x=seq(0.1, 1, len=10)
    h=1.e-7
@@ -218,7 +218,7 @@ test_that("reused variables", { # (issue #12)
 f <- function(x){ t<-x^2; log(t) }
 g <- function(x) cos(f(x))
 test_that("composite function", {
-   expect_equal(Deriv(g,"x"), function (x) -(2 * (sin(f(x))/x)))
+   expect_equal(Deriv(g,"x"), function (x) -(2 * (sin(f(x))/x)), check.environment=FALSE)
 })
 
 # user function with non diff arguments
@@ -342,7 +342,7 @@ test_that("doc examples", {
    expect_equal(Deriv(quote(fsc(x, y^2)), c("x", "y"), cache.exp=FALSE), quote(c(x = cos(x) * cos(y^2), y = -(2 * (y * sin(x) * sin(y^2))))))
    expect_equal(Deriv(expression(sin(x^2) * y), "x"), expression(2 * (x * y * cos(x^2))))
    expect_equal(Deriv("sin(x^2) * y", "x"), "2 * (x * y * cos(x^2))")
-   expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x))
+   expect_equal(Deriv(fc, "x", cache=FALSE), function(x, h=0.1) if (abs(x) < h) x/h else sign(x), check.environment=FALSE)
    expect_equal(Deriv(~myfun(z^2, FALSE), "z"), quote(2 * (z * dmyfun(z^2, FALSE))))
    expect_equal(Deriv(~exp(-(x-theta$m)**2/(2*theta$sd)), x, cache.exp=FALSE),
     quote(c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) * (x - theta$m)/theta$sd, 
@@ -367,7 +367,7 @@ body(fd)=res
 f2=function(x, y) c(x, y)^2
 test_that("multivar diff", {
    expect_identical(Deriv(f), fd)
-   expect_equal(Deriv(f2, cache=FALSE), function (x, y) c(x = c(2, 0) * c(x, y), y = c(0, 2) * c(x, y)))
+   expect_equal(Deriv(f2, cache=FALSE), function (x, y) c(x = c(2, 0) * c(x, y), y = c(0, 2) * c(x, y)), check.environment=FALSE)
 })
 
 Sys.setlocale(category = "LC_COLLATE", locale = lc_orig)
