@@ -146,7 +146,7 @@ test_that("special functions", {
    expect_equal_deriv(lbeta(x, y), digamma(y) - digamma(x + y), "y")
 })
 test_that("probability densities", {
-   expect_equal_deriv(dbinom(5,3,x), 3 * ((3 - 5 * x) * dbinom(5, 2, x)/(1 - x)^2))
+   expect_equal_deriv(dbinom(1,3,x), (1 - 3 * x) * dbinom(1, 3, x)/(x * (1 - x)))
    expect_equal_deriv(dnorm(x, m=0.5), -(dnorm(x, 0.5, 1) * (x - 0.5)))
 })
 test_that("normal quantile", {

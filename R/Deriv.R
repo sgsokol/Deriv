@@ -740,7 +740,7 @@ drule[["psigamma"]] <- alist(x=psigamma(x, deriv+1L), deriv=NULL)
 drule[["beta"]] <- alist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
 drule[["lbeta"]] <- alist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
-drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=if (size == 0) -x*(1-prob)^(x-1) else if (x == size) size*prob^(size-1) else (size-x*prob)*(x-size+1)*dbinom(x, size-1, prob)/(1-prob)^2/(if (log) dbinom(x, size, prob) else 1), log=NULL)
+drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=(if (x == 0) -size*(1-prob)^(size-1) else if (x == size) size*prob^(size-1) else dbinom(x, size, prob)*(x-prob*size)/(prob-prob*prob))/(if (log) dbinom(x, size, prob, log=FALSE) else 1))
 drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
 	mean=(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
 	sd=(((x - mean)/sd)^2 - 1)/sd * (if (log) 1 else dnorm(x, mean, sd)),
