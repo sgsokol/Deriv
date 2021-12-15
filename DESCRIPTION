@@ -2,7 +2,7 @@ Package: Deriv
 Type: Package
 Title: Symbolic Differentiation
 Version: 4.1.4
-Date: 2021-12-13
+Date: 2021-12-15
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
     email="sokol@insa-toulouse.fr", comment = c(ORCID = "0000-0002-5674-3327")),

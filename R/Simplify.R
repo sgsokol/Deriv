@@ -663,6 +663,23 @@ Simplify.bessel <- function(expr, scache=NULL) {
 		return(a)
 	expr
 }
+`Simplify.ifelse` <- function(expr, scache=NULL)
+{
+#browser()
+	# ifelse(TRUE, a, b) -> a
+	# ifelse(FALSE, a, b) -> b
+	n=length(expr)
+	if (n > 1L) {
+		cond=expr[[2L]]
+	} else {
+		return(expr)
+	}
+	if (isTRUE(cond) && n > 2)
+		return(expr[[3L]])
+	if (isFALSE(cond) && n > 3)
+		return(expr[[4L]])
+	expr
+}
 Numden <- function(expr) {
 	# Return a list with "num" as numerator and "den" as denominator sublists.
 	# "fa" field is for numeric factors in "num" and "den" subfields.
@@ -1145,3 +1162,4 @@ assign("[", `Simplify.[`, envir=simplifications)
 assign("[[", `Simplify.[[`, envir=simplifications)
 assign("||", `Simplify.||`, envir=simplifications)
 assign("&&", `Simplify.&&`, envir=simplifications)
+assign("ifelse", `Simplify.ifelse`, envir=simplifications)

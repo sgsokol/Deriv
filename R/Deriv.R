@@ -572,6 +572,8 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c", drule.=Deriv::d
 					Deriv_(st[[4]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
 		}
 		rule <- drule.[[stch]]
+		if (is.null(rule) && !identical(drule., Deriv::drule))
+			rule <- Deriv::drule[[stch]] # complete by the classic table
 		if (is.null(rule)) {
 #browser()
 			# no derivative rule for this function
@@ -624,6 +626,9 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c", drule.=Deriv::d
 		}
 #browser()
 		rule$`_missing`=NULL
+		# deCache rule expressions
+		rule <- lapply(rule, deCache)
+		
 		# actualize the rule with actual arguments
 		rule <- lapply(rule, function(r) do.call("substitute", list(r, aa)))
 		# which arguments can be differentiated?
@@ -740,7 +745,7 @@ drule[["psigamma"]] <- alist(x=psigamma(x, deriv+1L), deriv=NULL)
 drule[["beta"]] <- alist(a=beta(a, b)*(digamma(a)-digamma(a+b)), b=beta(a, b)*(digamma(b)-digamma(a+b)))
 drule[["lbeta"]] <- alist(a=digamma(a)-digamma(a+b), b=digamma(b)-digamma(a+b))
 # probability densities
-drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=(if (x == 0) -size*(1-prob)^(size-1) else if (x == size) size*prob^(size-1) else dbinom(x, size, prob)*(x-prob*size)/(prob-prob*prob))/(if (log) dbinom(x, size, prob, log=FALSE) else 1))
+drule[["dbinom"]] <- alist(x=NULL, size=NULL, prob=ifelse(x == 0, -size*(1-prob)^(size-1), ifelse (x == size, size*prob^(size-1), dbinom(x, size, prob)*(x-prob*size)/(prob-prob*prob)))/(if (log) dbinom(x, size, prob, log=FALSE) else 1))
 drule[["dnorm"]] <- alist(x=-(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
 	mean=(x-mean)/sd^2*(if (log) 1 else dnorm(x, mean, sd)),
 	sd=(((x - mean)/sd)^2 - 1)/sd * (if (log) 1 else dnorm(x, mean, sd)),

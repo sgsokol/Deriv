@@ -1,8 +1,10 @@
 Version 4.1.4
 =============
 
-* 2021-12-13
- - fixed dbinom rule and corresponding test (issue #r25, eported by Rolf Turner, U. of Auckland)
+* 2021-12-15
+ - fixed dbinom rule and corresponding test (issue #r25, reported by Rolf Turner, U. of Auckland)
+ - fixed use of new and incomplete environment with new rule(s) (idem)
+ - fixed use of composed expressions, e.g. {...} in drule (idem)
 
 Version 4.1.3
 =============
