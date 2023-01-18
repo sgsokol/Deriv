@@ -1,8 +1,14 @@
+Version 4.1.5
+=============
+
+* 2023-01-18
+ - fixed deparse() use (issue #26, reported and resolved by philschus@github)
+
 Version 4.1.4
 =============
 
 * 2021-12-15
- - fixed dbinom rule and corresponding test (issue #r25, reported by Rolf Turner, U. of Auckland)
+ - fixed dbinom rule and corresponding test (issue #25, reported by Rolf Turner, U. of Auckland)
  - fixed use of new and incomplete environment with new rule(s) (idem)
  - fixed use of composed expressions, e.g. {...} in drule (idem)
 

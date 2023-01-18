@@ -259,7 +259,7 @@
 
 Deriv <- function(f, x=if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text=f) else f), env=if (is.function(f)) environment(f) else parent.frame(), use.D=FALSE, cache.exp=TRUE, nderiv=NULL, combine="c", drule=Deriv::drule) {
 	tf <- try(f, silent=TRUE)
-	fch <- deparse(substitute(f))
+	fch <- deparse1(substitute(f))
 	if (is.null(f))
 		return(NULL)
 	if (is.primitive(f)) {

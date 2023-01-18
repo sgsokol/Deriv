@@ -231,6 +231,9 @@ expect_equal(Deriv(~ifel(abs(t)<0.1, t**2, abs(t)), "t"), quote({
 }))
 rm("ifel", envir=drule)
 
+# long function name (issu #26)
+eedddddddddddddlog=function(x) log(x)
+expect_error(Deriv(function(x) eedddddddddddddddddddddddlog(x)^(1-sig)*exp(x)*h, "x"), NA)
 
 # test error reporting
 test_that("error reporting", {
