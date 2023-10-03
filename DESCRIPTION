@@ -13,7 +13,7 @@ Description: R-based solution for symbolic differentiation. It admits
     simplification is part of the work.
 License: GPL (>=3)
 Suggests:
-    testthat >= 0.11.0
+    testthat>= 0.11.0
 BugReports: https://github.com/sgsokol/Deriv/issues
 RoxygenNote: 7.1.0
 Imports: methods
