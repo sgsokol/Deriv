@@ -173,7 +173,7 @@ test_that("particular cases", {
    expect_equal_deriv(log(x, x), 0)
    expect_equal_deriv(x^n+sin(n*x), n * (cos(n * x) + x^(n - 1)))
    expect_equal_deriv(x*(1-x), 1-2*x)
-   expect_equal_deriv(x^x, x^x+x^x*log(x))
+   expect_equal_deriv(x^x, x^x*(1+log(x)))
 })
 test_that("indexing", {
    expect_equal_deriv(a[['b']], 0)
@@ -232,7 +232,7 @@ expect_equal(Deriv(~ifel(abs(t)<0.1, t**2, abs(t)), "t"), quote({
 rm("ifel", envir=drule)
 
 # long function name (issu #26)
-eedddddddddddddlog=function(x) log(x)
+eedddddddddddddddddddddddlog=function(x) log(x)
 expect_error(Deriv(function(x) eedddddddddddddddddddddddlog(x)^(1-sig)*exp(x)*h, "x"), NA)
 
 # test error reporting

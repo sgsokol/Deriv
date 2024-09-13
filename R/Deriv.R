@@ -15,7 +15,7 @@
 #'  }
 #' @param x An optional character vector with variable name(s) with respect to which
 #'  \code{f} must be differentiated. If not provided (i.e. x=NULL), x is
-#'  guessed either from\ code{names(formals(f))} (if \code{f} is a function)
+#'  guessed either from \code{names(formals(f))} (if \code{f} is a function)
 #'  or from all variables in f in other cases.
 #'  To differentiate expressions including components of lists or vectors, i.e. by expressions like
 #'  \code{p[1]}, \code{theta[["alpha"]]} or \code{theta$beta}, the vector of

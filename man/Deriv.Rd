@@ -7,8 +7,7 @@
 \usage{
 Deriv(
   f,
-  x = if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text = f) else
-    f),
+  x = if (is.function(f)) NULL else all.vars(if (is.character(f)) parse(text = f) else f),
   env = if (is.function(f)) environment(f) else parent.frame(),
   use.D = FALSE,
   cache.exp = TRUE,
@@ -30,7 +29,7 @@ f can be \itemize{
 
 \item{x}{An optional character vector with variable name(s) with respect to which
 \code{f} must be differentiated. If not provided (i.e. x=NULL), x is
-guessed either from\ code{names(formals(f))} (if \code{f} is a function)
+guessed either from \code{names(formals(f))} (if \code{f} is a function)
 or from all variables in f in other cases.
 To differentiate expressions including components of lists or vectors, i.e. by expressions like
 \code{p[1]}, \code{theta[["alpha"]]} or \code{theta$beta}, the vector of
@@ -137,7 +136,7 @@ per argument. See \code{drule$log} for an example to follow.
 After adding \code{sinpi} you can differentiate expressions like
 \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 
-Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replace by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
+Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replaced by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
 \cr
 Another v4.0 novelty in rule's syntax is a possible use of optional parameter \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how to treat missing arguments. By default, i.e. in absence of this parameter or set to FALSE, missing arguments were replaced by their default values. Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
 
@@ -168,10 +167,20 @@ NB3. There is a side effect with vector length. E.g. in
      Instead, one should modify the previous call to explicitly use a constant vector
      of appropriate length:
      \code{Deriv(~sum((rep(a, length(x))+b*x - y)**2), c("a", "b"), n=2)}
+
 NB4. Differentiation of \code{*apply()} family (available starting from v4.1) is
      done only on the body of the \code{FUN} argument. It implies that this
      body must use the same variable names as in \code{x} and they must not
      appear in \code{FUN}s arguments (cf. GMM example).
+
+NB5. Expressions are differentiated as scalar ones. However in some cases, obtained result
+     remains valid if the variable of differentiation is a vector. This is just a coincidence.
+     If you need to differentiate by vectors, you can try to write your own differentiation rule.
+     For example, derivative of \code{sum(x)} where \code{x} is a vector can be done as:
+     \code{vsum=function(x) sum(x)}
+     \code{drule[["vsum"]] <- alist(x=rep_len(1, length(x)))} # drule is exported from Deriv namespace
+     \code{Deriv(~vsum(a*x), "x", drule=drule)}
+     \code{# a * rep_len(1, length(a * x))}
 }
 \examples{
 
