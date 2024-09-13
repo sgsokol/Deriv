@@ -184,7 +184,7 @@ test_that("matrix calculus", {
 
 test_that("language constructs", {
    expect_equal_deriv(ifelse(x>0, x^2, x^3), ifelse(test=x>0, yes=2*x, no=3*x^2))
-   expect_equal_deriv(with(list(c=2), x^c), with(data=list(c = 2), expr=c * x^(c - 1)))
+   expect_equal_deriv(with(list(c=2), x^c), with(list(c = 2), c * x^(c - 1)))
 })
 
 # test AD and caching
@@ -351,6 +351,10 @@ test_that("doc examples", {
     quote(c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) * (x - theta$m)/theta$sd, 
     theta_sd = 2 * (exp(-((x - theta$m)^2/(2 * theta$sd))) * 
         (x - theta$m)^2/(2 * theta$sd)^2))))
+   expect_equal(Deriv(~with(theta, exp(-(x-m)**2/(2*sd))), x, cache.exp=FALSE),
+    quote(c(theta_m = with(theta, exp(-((x - m)^2/(2 * sd))) * (x - m)/sd), 
+    theta_sd = with(theta, 2 * (exp(-((x - m)^2/(2 * sd))) * 
+        (x - m)^2/(2 * sd)^2)))))
    expect_equal(dp(0, a, m, s), -0.9547048, tolerance=1.e-6)
 })
 drule[["myfun"]] <- NULL

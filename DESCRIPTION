@@ -1,7 +1,7 @@
 Package: Deriv
 Type: Package
 Title: Symbolic Differentiation
-Version: 4.1.6
+Version: 4.2
 Date: 2024-09-12
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
@@ -16,3 +16,4 @@ Suggests: testthat (>= 0.11.0)
 BugReports: https://github.com/sgsokol/Deriv/issues
 RoxygenNote: 7.3.1
 Imports: methods
+Encoding: UTF-8

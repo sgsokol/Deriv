@@ -20,8 +20,10 @@
 #'  To differentiate expressions including components of lists or vectors, i.e. by expressions like
 #'  \code{p[1]}, \code{theta[["alpha"]]} or \code{theta$beta}, the vector of
 #'  variables \code{x}
-#'  must be a named vector. For the cited examples, \code{x} must be given
-#'  as follows \code{c(p="1", theta="alpha", theta="beta")}. Note the repeated name \code{theta} which must be provided for every component of the list \code{theta} by which a
+#'  must be a named vector. For the cited examples, the argument \code{x} must be given
+#'  as follows \code{c(p="1", theta="alpha", theta="beta")}.
+#'  Note the repeated name \code{theta} which must be provided for every component
+#'  of the list \code{theta} by which a
 #'  differentiation is required.
 #' @param env An environment where the symbols and functions are searched for.
 #'  Defaults to \code{parent.frame()} for \code{f} expression and to
@@ -55,10 +57,12 @@
 #' }
 #'
 #' @details
-#' R already contains two differentiation functions: D and deriv. D does
-#' simple univariate differentiation.  "deriv" uses D to do multivariate
-#' differentiation.  The output of "D" is an expression, whereas the output of
-#' "deriv" can be an executable function.
+#' R already contains two differentiation functions: \code{stats::D} and \code{stats:deriv}.
+#' \code{D} does
+#' simple univariate differentiation while  \code{deriv} uses \code{D}
+#' to do multivariate
+#' differentiation.  The output of \code{D} is an expression, whereas the output of
+#' \code{deriv} can be an executable function.
 #'
 #' R's existing functions have several limitations.  They can probably be fixed,
 #' but since they are written in C, this would probably require a lot of work.
@@ -66,8 +70,8 @@
 #' \itemize{
 #'  \item The derivatives table can't be modified at runtime, and is only available
 #' in C.
-#'  \item Function cannot substitute function calls.  eg:
-#'	f <- function(x, y) x + y; deriv(~f(x, x^2), "x")
+#'  \item Function cannot substitute function calls.  e.g.:
+#'	f <- function(x, y) x + y; deriv(~f(x, x^2), "x") is not working.
 #' }
 #'
 #' So, here are the advantages of this implementation:
@@ -79,7 +83,8 @@
 #'  \itemize{
 #'	   \item if the function is in the derivative table, then the chain rule
 #'	is applied.  For example, if you declared that the derivative of
-#'	sin is cos, then it would figure out how to call cos correctly.
+#'	\code{sin} is \code{cos}, then it would figure out how to call
+#'  \code{cos} correctly in case of complex argument.
 #'	   \item if the function is not in the derivative table (or it is anonymous),
 #'	then the function body is substituted in.
 #'	   \item these two methods can be mixed.  An entry in the derivative table
@@ -90,7 +95,10 @@
 #'
 #'   \code{drule[["cos"]] <- alist(x=-sin(x))}
 #'
-#'   The chain rule will be automatically applied if needed.
+#'   The chain rule will be automatically applied if needed. In their custom rules,
+#'   users should avoid using variable names like \code{.e1}, \code{.e2} etc. which
+#'   can be confounded with those automatically created by \code{Deriv} for code caching
+#'   purposes.
 #'  \item The output is an executable function, which makes it suitable
 #'      for use in optimization problems.
 #'  \item Compound functions (i.e. piece-wise functions based on if-else operator) can
@@ -112,9 +120,17 @@
 #' After adding \code{sinpi} you can differentiate expressions like
 #' \code{Deriv(~ sinpi(x^2), "x")}. The chain rule will automatically apply.
 #' 
-#' Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing. Here \code{X} must be replaced by an argument name (cf. \code{drule[["solve"]]} for an example). A use of this syntax leads to a replacement of this place-holder by a derivative of the function (chain rule is automatically integrated) by the named argument.
+#' Starting from v4.0, user can benefit from a syntax \code{.d_X} in the rule writing.
+#' Here \code{X} must be replaced by an argument name (cf. \code{drule[["solve"]]} for
+#' an example). A use of this syntax leads to a replacement of this place-holder by a
+#' derivative of the function (chain rule is automatically integrated) by the named argument.
 #' \cr
-#' Another v4.0 novelty in rule's syntax is a possible use of optional parameter \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how to treat missing arguments. By default, i.e. in absence of this parameter or set to FALSE, missing arguments were replaced by their default values. Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
+#' Another v4.0 novelty in rule's syntax is a possible use of optional parameter
+#' \code{`_missing`} which can be set to TRUE or FALSE (default) to indicate how
+#' to treat missing arguments. By default, i.e. in absence of this parameter
+#' or set to FALSE, missing arguments were replaced by their default values.
+#' Now, if \code{`_missing`=TRUE} is specified in a rule, the missing arguments
+#' will be left missed in the derivative. Look \code{drule[["solve"]]} for an example.
 #'
 #' NB. In \code{abs()} and \code{sign()} function, singularity treatment
 #'     at point 0 is left to user's care.
@@ -146,7 +162,7 @@
 #'
 #' NB4. Differentiation of \code{*apply()} family (available starting from v4.1) is
 #'      done only on the body of the \code{FUN} argument. It implies that this
-#'      body must use the same variable names as in \code{x} and they must not
+#'      body must use the same variable names as in argument \code{x} and they must not
 #'      appear in \code{FUN}s arguments (cf. GMM example).
 #'
 #' NB5. Expressions are differentiated as scalar ones. However in some cases, obtained result
@@ -157,6 +173,12 @@
 #'      \code{drule[["vsum"]] <- alist(x=rep_len(1, length(x)))} # drule is exported from Deriv namespace
 #'      \code{Deriv(~vsum(a*x), "x", drule=drule)}
 #'      \code{# a * rep_len(1, length(a * x))}
+#' 
+#' NB6. Since v4.2, it is possible to differentiate by named components of lists and vectors
+#'      that are used in \code{with(data, expr)} expressions (cf. "with()" example).
+#'      The names of argument \code{x} ("theta" in an example above) must be used
+#'		directly, e.g \code{with(theta, ...)} or \code{with(as.list(theta), ...)}.
+#'		Otherwise, the \code{expr} of \code{with()} will be differentiated as plain code.
 #'
 #' @author Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 #' @examples
@@ -229,6 +251,18 @@
 #' # c(theta_m = exp(-((x - theta$m)^2/(2 * theta$sd))) *
 #' #  (x - theta$m)/theta$sd, theta_sd = 2 * (exp(-((x - theta$m)^2/
 #' #  (2 * theta$sd))) * (x - theta$m)^2/(2 * theta$sd)^2))
+#' }
+#'
+#' # Differentiation by list components used in "with()" expression (since v4.2)
+#' # Compare with precedent example.
+#' \dontrun{
+#'   theta <- list(m=0.1, sd=2.)
+#'   x <- names(theta)
+#'   names(x)=rep("theta", length(theta))
+#'   Deriv(~with(theta, exp(-(x-m)**2/(2*sd))), x, cache.exp=FALSE)
+#' # c(theta_m = with(theta, exp(-((x - m)^2/(2 * sd))) * (x - m)/sd), 
+#' #     theta_sd = with(theta, 2 * (exp(-((x - m)^2/(2 * sd))) * 
+#' #         (x - m)^2/(2 * sd)^2)))
 #' }
 #' # Differentiation in matrix calculus
 #' \dontrun{
@@ -552,13 +586,6 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c", drule.=Deriv::d
 					}
 				}
 			}
-#browser()
-#			if (length(alva) == length(res)) {
-#				i <- toporder(alva[-length(alva)]) # the last expression must stay the last
-#			} else {
-#				i <- toporder(alva)
-#			}
-#			res[-c(1, length(res))] <- res[-c(1, length(res))][i]
 			return(Simplify(as.call(res)))
 		} else if (is.uminus(st)) {
 			return(Simplify(call("-", Deriv_(st[[2]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
@@ -570,6 +597,18 @@ Deriv_ <- function(st, x, env, use.D, dsym, scache, combine="c", drule.=Deriv::d
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache) else
 				Simplify(call("if", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache, drule.=drule.),
 					Deriv_(st[[4]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
+		} else if (stch == "with") {
+#browser()
+			
+			if (format1(st[[2L]]) %in% nm_x ||
+				(is.call(st[[2L]]) && format1(st[[2L]][[1L]]) == "as.list" &&
+				format1(st[[2L]][[2L]]) %in% nm_x)) {
+				# diff expr of with() by unnamed x
+				return(Simplify(call("with", st[[2]], Deriv_(st[[3]], unname(x), env, use.D, dsym, scache, drule.=drule.)), scache=scache))
+			} else {
+				# diff expr as is
+				return(Simplify(call("with", st[[2]], Deriv_(st[[3]], x, env, use.D, dsym, scache, drule.=drule.)), scache=scache))
+			}
 		}
 		rule <- drule.[[stch]]
 		if (is.null(rule) && !identical(drule., Deriv::drule))
@@ -688,7 +727,7 @@ dlin=c("+", "-", "c", "t", "sum", "cbind", "rbind", "list")
 # partially linear functions, i.e. linear only on a subset of arguments
 # here, function name points to a vector of argument names (or indexes in a full call) which we have to differentiate
 dplin=list(apply="FUN", lapply="FUN", sapply="FUN", vapply="FUN", lapply="FUN",
-	ifelse=c("yes", "no"), with="expr", "function"=3L,
+	ifelse=c("yes", "no"), "function"=3L,
 	rep="x", rep.int="x", rep_len="x",
 	rowSums="x", colSums="x", rowMeans="x", colMeans="x", structure=".Data"
 )

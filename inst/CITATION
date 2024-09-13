@@ -3,6 +3,6 @@ bibentry(bibtype = "Manual",
          author = c(person(given="Andrew", family="Clausen"),
                     person(given="Serguei", family="Sokol")),
          year = 2024,
-         note = "Deriv package version 4.1",
+         note = "Deriv package version 4.2",
          url = "https://CRAN.R-project.org/package=Deriv"
 )
