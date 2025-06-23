@@ -85,6 +85,16 @@ test_that("missing args", {
    expect_equal_lang(f(a,b,), f(a,b))
    expect_equal_lang(f(a,c=,b), f(a,c=,b)) # no change must occur
 })
+test_that("big integers in fractions", {
+   expect_equal_lang(x/1.e9, x/1.e9)
+   expect_equal_lang(x/1.e10, x/1.e10)
+   expect_equal_lang(2*x/1.e10, x/5.e9)
+   expect_equal_lang(5*x/1.e10, x/2.e9)
+   expect_equal_lang(x*1.e9, 1.e9*x)
+   expect_equal_lang(x*1.e10, 1.e10*x)
+   expect_equal_lang(x/2*1.e10, 5.e9*x)
+   expect_equal_lang(x/5*1.e10, 2.e9*x)
+})
 
 context("expression caching")
 

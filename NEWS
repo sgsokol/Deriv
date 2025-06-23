@@ -1,3 +1,9 @@
+Version 4.2.1
+=============
+
+* 2025-07-??
+ - again a fix for as.integer() which is replaced by floor() now
+
 Version 4.2.0
 =============
 
