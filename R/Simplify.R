@@ -340,12 +340,14 @@ Simplify_ <- function(expr, scache) {
 			fa$den <- nd_a$fa$den*nd_b$fa$den
 		}
 		res <- fa$num/fa$den
-		if (all(as.integer(res) == res)) {
+		suppressWarnings(ires <- as.integer(res))
+		if (!anyNA(ires) && all(ires == res)) {
 			fa$num <- res
 			fa$den <- 1
 		} else if (fa$den != 1) {
 			res <- fa$den/fa$num
-			if (all(as.integer(res) == res)) {
+			suppressWarnings(ires <- as.integer(res))
+			if (!anyNA(ires) && all(ires == res)) {
 				fa$num <- 1
 				fa$den <- res
 			}

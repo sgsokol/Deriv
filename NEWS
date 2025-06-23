@@ -1,8 +1,9 @@
 Version 4.2.0
 =============
 
-* 2024-??-??
+* 2025-06-20
  - added `with()` construct
+ - fixed as.integer() for big numbers in simplification of fractions (fixing issue #29)
 
 Version 4.1.6
 =============
