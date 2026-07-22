@@ -181,6 +181,7 @@
 #'		Otherwise, the \code{expr} of \code{with()} will be differentiated as plain code.
 #'
 #' @author Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
+#' @seealso \code{\link{Deriv_cpp}}
 #' @examples
 #'
 #' \dontrun{f <- function(x) x^2}

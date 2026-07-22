@@ -1,5 +1,8 @@
 export(Deriv, Simplify, format1, drule, simplifications, Cache, deCache)
+export(Simplify_cpp, Deriv_cpp)
 importFrom("stats", "D")
 importFrom("utils", "modifyList")
 importFrom("utils", "head")
 importFrom("methods", "substituteDirect")
+useDynLib(Deriv, .registration=TRUE)
+importFrom(Rcpp, evalCpp)

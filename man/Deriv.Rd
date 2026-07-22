@@ -314,6 +314,9 @@ matplot(xp, cbind(p(xp, a, m, s), dp(xp, a, m, s)),
    xlab="x", ylab="p, dp/dx", type="l", main="Two component GMM")
 }
 }
+\seealso{
+\code{\link{Deriv_cpp}}
+}
 \author{
 Andrew Clausen (original version) and Serguei Sokol (actual version and maintainer)
 }
