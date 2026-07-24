@@ -11,6 +11,13 @@ void debug_print(const char* label, SEXP expr) {
     Rf_PrintValue(expr);
 }
 
+// Returns true if expr is a unary minus call, e.g. (-x)
+inline bool is_unary_minus(SEXP expr) {
+    return TYPEOF(expr) == LANGSXP && 
+           Rf_length(expr) == 2 && 
+           CAR(expr) == Rf_install("-");
+}
+
 // Helper to substitute formal parameter names with actual calling arguments inside a drule template
 SEXP substitute_expr(SEXP expr, Rcpp::List subst_map) {
     if (expr == R_NilValue) {
@@ -136,27 +143,21 @@ SEXP Simplify_cpp(SEXP expr) {
             if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return left; }
 
             // x + (-y)  ==>  x - y
-            if (TYPEOF(right) == LANGSXP && Rf_length(right) == 2) {
-                SEXP r_op = CAR(right);
-                if (TYPEOF(r_op) == SYMSXP && std::string(CHAR(PRINTNAME(r_op))) == "-") {
-                    SEXP inner_y = CADR(right);
-                    SEXP new_sub = PROTECT(Rcpp::Language("-", left, inner_y));
-                    SEXP res = Simplify_cpp(new_sub);
-                    UNPROTECT(3); // left, right, new_sub
-                    return res;
-                }
+            if (is_unary_minus(right)) {
+                SEXP inner_y = CADR(right);
+                SEXP new_sub = PROTECT(Rcpp::Language("-", left, inner_y));
+                SEXP res = Simplify_cpp(new_sub);
+                UNPROTECT(3); // left, right, new_sub
+                return res;
             }
 
             // (-y) + x  ==>  x - y
-            if (TYPEOF(left) == LANGSXP && Rf_length(left) == 2) {
-                SEXP l_op = CAR(left);
-                if (TYPEOF(l_op) == SYMSXP && std::string(CHAR(PRINTNAME(l_op))) == "-") {
-                    SEXP inner_y = CADR(left);
-                    SEXP new_sub = PROTECT(Rcpp::Language("-", right, inner_y));
-                    SEXP res = Simplify_cpp(new_sub);
-                    UNPROTECT(3); // left, right, new_sub
-                    return res;
-                }
+            if (is_unary_minus(left)) {
+                SEXP inner_y = CADR(left);
+                SEXP new_sub = PROTECT(Rcpp::Language("-", right, inner_y));
+                SEXP res = Simplify_cpp(new_sub);
+                UNPROTECT(3); // left, right, new_sub
+                return res;
             }
 
         } else if (op == "*") {
@@ -180,6 +181,26 @@ SEXP Simplify_cpp(SEXP expr) {
                 return res;
             }
 
+            // (-a) * b ==> -(a * b)
+            if (is_unary_minus(left)) {
+                SEXP inner_a = CADR(left);
+                SEXP prod = PROTECT(Rcpp::Language("*", inner_a, right));
+                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(prod)));
+                SEXP res = Simplify_cpp(neg_call);
+                UNPROTECT(4); // left, right, prod, neg_call
+                return res;
+            }
+
+            // a * (-b) ==> -(a * b)
+            if (is_unary_minus(right)) {
+                SEXP inner_b = CADR(right);
+                SEXP prod = PROTECT(Rcpp::Language("*", left, inner_b));
+                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(prod)));
+                SEXP res = Simplify_cpp(neg_call);
+                UNPROTECT(4); // left, right, prod, neg_call
+                return res;
+            }
+
         } else if (op == "-") {
             if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return left; }
             if (is_numeric_val(left, 0.0)) {
@@ -192,6 +213,26 @@ SEXP Simplify_cpp(SEXP expr) {
         } else if (op == "/") {
             if (is_numeric_val(left, 0.0))  { UNPROTECT(2); return Rcpp::wrap(0.0); }
             if (is_numeric_val(right, 1.0)) { UNPROTECT(2); return left; }
+
+            // (-a) / b ==> -(a / b)
+            if (is_unary_minus(left)) {
+                SEXP inner_a = CADR(left);
+                SEXP div = PROTECT(Rcpp::Language("/", inner_a, right));
+                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(div)));
+                SEXP res = Simplify_cpp(neg_call);
+                UNPROTECT(4); // left, right, div, neg_call
+                return res;
+            }
+
+            // a / (-b) ==> -(a / b)
+            if (is_unary_minus(right)) {
+                SEXP inner_b = CADR(right);
+                SEXP div = PROTECT(Rcpp::Language("/", left, inner_b));
+                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(div)));
+                SEXP res = Simplify_cpp(neg_call);
+                UNPROTECT(4); // left, right, div, neg_call
+                return res;
+            }
 
         } else if (op == "^") {
             if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return Rcpp::wrap(1.0); }
@@ -221,14 +262,11 @@ SEXP Simplify_cpp(SEXP expr) {
             }
             
             // Double negation: -(-y) ==> y
-            if (TYPEOF(arg) == LANGSXP && Rf_length(arg) == 2) {
-                SEXP arg_op = CAR(arg);
-                if (TYPEOF(arg_op) == SYMSXP && std::string(CHAR(PRINTNAME(arg_op))) == "-") {
-                    SEXP inner_y = CADR(arg);
-                    SEXP res = Simplify_cpp(inner_y);
-                    UNPROTECT(1); // arg
-                    return res;
-                }
+            if (is_unary_minus(arg)) {
+                SEXP inner_y = CADR(arg);
+                SEXP res = Simplify_cpp(inner_y);
+                UNPROTECT(1); // arg
+                return res;
             }
         }
 
@@ -299,9 +337,9 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
         }
 
         // --- B. LOOKUP IN DRULE TABLE ---
-        SEXP fname = fun;
-        SEXP rules = drule.find(fname);
-        if (rules != R_UnboundValue && TYPEOF(rules) == VECSXP) {
+        //debug_print("fun=", fun);
+        SEXP rules = drule.get(CHAR(PRINTNAME(fun)));
+        if (rules != R_NilValue && TYPEOF(rules) == VECSXP) {
             
             SEXP arg_names = Rf_getAttrib(rules, R_NamesSymbol);
             int num_formals = Rf_length(rules);
@@ -369,8 +407,8 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
         }
         
         // --- C. LOOKUP USER-DEFINED FUNCTION BODY IN ENV ---
-        SEXP sym_op = Rf_install(op.c_str());
-        SEXP user_fun = env.find(sym_op);
+        //debug_print("env", Rcpp::as<Rcpp::List>(env));
+        SEXP user_fun = env.find(op);
 
         if (user_fun != R_UnboundValue && TYPEOF(user_fun) == CLOSXP) {
             SEXP formals = R_ClosureFormals(user_fun);

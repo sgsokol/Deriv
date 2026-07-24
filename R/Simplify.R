@@ -873,7 +873,7 @@ Cache <- function(st, env=Leaves(st), prefix="") {
 	#	return(as.call(c(list(st[[1]]), lapply(as.list(st)[-1], Cache, env=env))))
 	#}
 	alva <- all.vars(st)
-	p <- grep(sprintf("^%s.e[0-9]+", prefix), alva, value=TRUE)
+	p <- grep(sprintf("^%s\\.e[0-9]+$", prefix), alva, value=TRUE)
 	if (nchar(prefix) == 0 && length(p) > 0) {
 		prefix <- max(p)
 	}
