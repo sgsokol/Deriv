@@ -5,6 +5,12 @@
 #include <cmath>
 
 using namespace Rcpp;
+// Compatibility macros for R < 4.5.0
+#if R_VERSION < R_Version(4, 5, 0)
+#  define R_ClosureFormals(x) FORMALS(x)
+#  define R_ClosureBody(x)    BODY(x)
+#  define R_ClosureEnv(x)     CLOENV(x)
+#endif
 
 void debug_print(const char* label, SEXP expr) {
     Rcpp::Rcout << "[DEBUG] " << label << ": ";

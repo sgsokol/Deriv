@@ -6,7 +6,7 @@ Version 4.3.1
 
 2026-09-??
 
-- fixed issue #30
+- fixed issues #30 and #31
 - added rules `a*(-b)`, `(-a)*b` -> `-(a*b)` to Simplify_cpp()
 - added few tests for C++ code
 
