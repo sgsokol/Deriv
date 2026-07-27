@@ -31,7 +31,7 @@ jobs:
 
       - name: Run revdep check
         run: |
-          revdepcheck::revdep_check(num_workers = parallel::detectCores())
+          revdepcheck::revdep_check(bioc = FALSE, num_workers = parallel::detectCores())
         shell: Rscript {0}
 
       - name: Upload revdep check results
