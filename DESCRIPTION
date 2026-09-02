@@ -1,7 +1,7 @@
 Package: Deriv
 Type: Package
 Title: Symbolic Differentiation
-Version: 4.3.2
+Version: 4.3.3
 Date: 2026-09-??
 Authors@R: c(person(given="Andrew", family="Clausen", role="aut"),
     person(given="Serguei", family="Sokol", role=c("aut", "cre"),
@@ -12,7 +12,7 @@ Description: R-based solution for symbolic differentiation. It admits
     in arguments of functions to be differentiated. Some symbolic
     simplification is part of the work.
 License: GPL (>=3)
-Depends: Rcpp, R (>= 4.4.1)
+Depends: Rcpp, R (>= 4.5)
 LinkingTo: Rcpp
 NeedsCompilation: yes
 Suggests: testthat (>= 0.11.0)

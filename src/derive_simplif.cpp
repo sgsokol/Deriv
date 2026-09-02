@@ -105,9 +105,82 @@ std::string deparse_node(SEXP expr) {
     return "";
 }
 
+inline bool is_call_to(SEXP expr, const char* name) {
+    if (TYPEOF(expr) != LANGSXP) return false;
+    return TYPEOF(CAR(expr)) == SYMSXP && strcmp(CHAR(PRINTNAME(CAR(expr))), name) == 0;
+}
+
+bool nodes_equal(SEXP a, SEXP b) {
+    if (a == b) return true;
+    if (TYPEOF(a) != TYPEOF(b)) return false;
+
+    switch (TYPEOF(a)) {
+        case REALSXP:
+            return Rf_asReal(a) == Rf_asReal(b);
+        case INTSXP:
+            return Rf_asInteger(a) == Rf_asInteger(b);
+        case SYMSXP:
+            return std::string(CHAR(PRINTNAME(a))) == std::string(CHAR(PRINTNAME(b)));
+        case LANGSXP:
+        case LISTSXP: {
+            if (Rf_length(a) != Rf_length(b)) return false;
+            if (!nodes_equal(CAR(a), CAR(b))) return false;
+            if (!nodes_equal(TAG(a), TAG(b))) return false;
+            return nodes_equal(CDR(a), CDR(b));
+        }
+        default:
+            return false;
+    }
+}
+
+SEXP match_call_args(SEXP formals_pairlist, SEXP actual_args_pairlist) {
+    SEXP subst_env = PROTECT(R_NewEnv(R_EmptyEnv, 0, 0));
+
+    // Step 1: Bind defaults first
+    SEXP f = formals_pairlist;
+    while (f != R_NilValue) {
+        SEXP sym = TAG(f);
+        if (TYPEOF(sym) == SYMSXP) {
+            SEXP default_val = CAR(f);
+            if (default_val != R_MissingArg) {
+                Rf_defineVar(sym, default_val, subst_env);
+            }
+        }
+        f = CDR(f);
+    }
+
+    // Step 2: Bind supplied arguments (handles both positional and named)
+    SEXP a = actual_args_pairlist;
+    SEXP f_pos = formals_pairlist;
+
+    while (a != R_NilValue) {
+        SEXP arg_val = CAR(a);
+        SEXP arg_tag = TAG(a);
+
+        if (arg_tag != R_NilValue && TYPEOF(arg_tag) == SYMSXP) {
+            // Named argument: e.g., log(x, base = 10)
+            Rf_defineVar(arg_tag, arg_val, subst_env);
+        } else if (f_pos != R_NilValue) {
+            // Positional argument
+            SEXP formal_sym = TAG(f_pos);
+            if (TYPEOF(formal_sym) == SYMSXP) {
+                Rf_defineVar(formal_sym, arg_val, subst_env);
+            }
+            f_pos = CDR(f_pos);
+        }
+        a = CDR(a);
+    }
+
+    UNPROTECT(1); // subst_env
+    return subst_env;
+}
+
 // ---------------------------------------------------------
 // Simplify Pass
 // ---------------------------------------------------------
+// Forward declarations
+SEXP Simplify_Unary(const std::string& op, SEXP arg);
+SEXP Simplify_Binary(const std::string& op, SEXP left, SEXP right);
 
 //' Simplify Symbolic Expressions
 //'
@@ -119,171 +192,169 @@ SEXP Simplify_cpp(SEXP expr) {
     if (TYPEOF(expr) != LANGSXP) return expr;
 
     SEXP fun = CAR(expr);
-    if (TYPEOF(fun) != SYMSXP) return expr; 
-    
+    if (TYPEOF(fun) != SYMSXP) return expr;
     std::string op = CHAR(PRINTNAME(fun));
     int len = Rf_length(expr);
-    
-    if (len == 3) {
-        // Evaluate and protect left and right children
+
+    if (len == 2) {
+        // Evaluate child fully before checking rules
+        SEXP arg = PROTECT(Simplify_cpp(CADR(expr)));
+        SEXP res = Simplify_Unary(op, arg);
+        UNPROTECT(1);
+        return res;
+    } 
+    else if (len == 3) {
+        // Evaluate children fully before checking rules
         SEXP left = PROTECT(Simplify_cpp(CADR(expr)));
         SEXP right = PROTECT(Simplify_cpp(CADDR(expr)));
-        
-        double val_l, val_r;
-        if (get_numeric_val(left, val_l) && get_numeric_val(right, val_r)) {
-            SEXP res = R_NilValue;
-            if (op == "+") res = Rcpp::wrap(val_l + val_r);
-            else if (op == "-") res = Rcpp::wrap(val_l - val_r);
-            else if (op == "*") res = Rcpp::wrap(val_l * val_r);
-            else if (op == "/" && val_r != 0.0) res = Rcpp::wrap(val_l / val_r);
-            else if (op == "^") res = Rcpp::wrap(std::pow(val_l, val_r));
-            
-            if (res != R_NilValue) {
-                UNPROTECT(2); // left, right
-                return res;
-            }
-        }
-        
-        if (op == "+") {
-            if (is_numeric_val(left, 0.0))  { UNPROTECT(2); return right; }
-            if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return left; }
-
-            // x + (-y)  ==>  x - y
-            if (is_unary_minus(right)) {
-                SEXP inner_y = CADR(right);
-                SEXP new_sub = PROTECT(Rcpp::Language("-", left, inner_y));
-                SEXP res = Simplify_cpp(new_sub);
-                UNPROTECT(3); // left, right, new_sub
-                return res;
-            }
-
-            // (-y) + x  ==>  x - y
-            if (is_unary_minus(left)) {
-                SEXP inner_y = CADR(left);
-                SEXP new_sub = PROTECT(Rcpp::Language("-", right, inner_y));
-                SEXP res = Simplify_cpp(new_sub);
-                UNPROTECT(3); // left, right, new_sub
-                return res;
-            }
-
-        } else if (op == "*") {
-            if (is_numeric_val(left, 0.0) || is_numeric_val(right, 0.0)) {
-                UNPROTECT(2);
-                return Rcpp::wrap(0.0);
-            }
-            if (is_numeric_val(left, 1.0))  { UNPROTECT(2); return right; }
-            if (is_numeric_val(right, 1.0)) { UNPROTECT(2); return left; }
-            
-            if (is_numeric_val(right, -1.0)) {
-                SEXP neg_call = PROTECT(Rcpp::Language("-", left));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(3); // left, right, neg_call
-                return res;
-            }
-            if (is_numeric_val(left, -1.0)) {
-                SEXP neg_call = PROTECT(Rcpp::Language("-", right));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(3); // left, right, neg_call
-                return res;
-            }
-
-            // (-a) * b ==> -(a * b)
-            if (is_unary_minus(left)) {
-                SEXP inner_a = CADR(left);
-                SEXP prod = PROTECT(Rcpp::Language("*", inner_a, right));
-                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(prod)));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(4); // left, right, prod, neg_call
-                return res;
-            }
-
-            // a * (-b) ==> -(a * b)
-            if (is_unary_minus(right)) {
-                SEXP inner_b = CADR(right);
-                SEXP prod = PROTECT(Rcpp::Language("*", left, inner_b));
-                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(prod)));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(4); // left, right, prod, neg_call
-                return res;
-            }
-
-        } else if (op == "-") {
-            if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return left; }
-            if (is_numeric_val(left, 0.0)) {
-                SEXP neg_call = PROTECT(Rcpp::Language("-", right));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(3); // left, right, neg_call
-                return res;
-            }
-
-        } else if (op == "/") {
-            if (is_numeric_val(left, 0.0))  { UNPROTECT(2); return Rcpp::wrap(0.0); }
-            if (is_numeric_val(right, 1.0)) { UNPROTECT(2); return left; }
-
-            // (-a) / b ==> -(a / b)
-            if (is_unary_minus(left)) {
-                SEXP inner_a = CADR(left);
-                SEXP div = PROTECT(Rcpp::Language("/", inner_a, right));
-                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(div)));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(4); // left, right, div, neg_call
-                return res;
-            }
-
-            // a / (-b) ==> -(a / b)
-            if (is_unary_minus(right)) {
-                SEXP inner_b = CADR(right);
-                SEXP div = PROTECT(Rcpp::Language("/", left, inner_b));
-                SEXP neg_call = PROTECT(Rcpp::Language("-", Simplify_cpp(div)));
-                SEXP res = Simplify_cpp(neg_call);
-                UNPROTECT(4); // left, right, div, neg_call
-                return res;
-            }
-
-        } else if (op == "^") {
-            if (is_numeric_val(right, 0.0)) { UNPROTECT(2); return Rcpp::wrap(1.0); }
-            if (is_numeric_val(right, 1.0)) { UNPROTECT(2); return left; }
-            if (is_numeric_val(left, 0.0))  { UNPROTECT(2); return Rcpp::wrap(0.0); }
-            if (is_numeric_val(left, 1.0))  { UNPROTECT(2); return Rcpp::wrap(1.0); }
-        }
-
-        // Reconstruct call node if unchanged
-        SEXP res = Rcpp::Language(op.c_str(), left, right);
-        UNPROTECT(2); // left, right
-        return res;
-        
-    } else if (len == 2) {
-        SEXP arg = PROTECT(Simplify_cpp(CADR(expr)));
-        
-        if (op == "+" || op == "(") {
-            UNPROTECT(1);
-            return arg;
-        }
-        
-        if (op == "-") {
-            double val_arg;
-            if (get_numeric_val(arg, val_arg)) {
-                UNPROTECT(1);
-                return Rcpp::wrap(-val_arg);
-            }
-            
-            // Double negation: -(-y) ==> y
-            if (is_unary_minus(arg)) {
-                SEXP inner_y = CADR(arg);
-                SEXP res = Simplify_cpp(inner_y);
-                UNPROTECT(1); // arg
-                return res;
-            }
-        }
-
-        SEXP res = Rcpp::Language(op.c_str(), arg);
-        UNPROTECT(1); // arg
+        SEXP res = Simplify_Binary(op, left, right);
+        UNPROTECT(2);
         return res;
     }
     
     return expr;
 }
 
+// ==========================================================
+// 2. UNARY RULES (Assumes 'arg' is already simplified)
+// ==========================================================
+SEXP Simplify_Unary(const std::string& op, SEXP arg) {
+    double val;
+    bool hasNum = get_numeric_val(arg, val);
+    if (hasNum) {
+        // whatever op, calculate the result
+        SEXP call = PROTECT(Rcpp::Language(op.c_str(), arg));
+        SEXP res = PROTECT(Rf_eval(call, R_BaseEnv));
+        
+        UNPROTECT(2); // Unprotect both call and res
+        return res;
+    }
+    if (op == "+" || op == "(") return arg;
+    
+    if (op == "-") {
+        // -(-y) => y (since arg is already simplified, CADR(arg) is final!)
+        if (is_unary_minus(arg)) return CADR(arg); 
+    }
+    
+    if (op == "log") {
+        if (is_call_to(arg, "exp")) return CADR(arg); // y from exp(y)
+    }
+    if (op == "exp") {
+        if (is_call_to(arg, "log") && Rf_length(arg) == 2) return CADR(arg);
+    }
+    
+    // No rules matched: Reconstruct call
+    return Rcpp::Language(op.c_str(), arg);
+}
+
+// ==========================================================
+// 3. BINARY RULES (Assumes 'left' & 'right' are already simplified)
+// ==========================================================
+SEXP Simplify_Binary(const std::string& op, SEXP left, SEXP right) {
+    double vL, vR;
+    bool hasL = get_numeric_val(left, vL);
+    bool hasR = get_numeric_val(right, vR);
+
+    // Constant Folding
+    if (hasL && hasR) {
+        SEXP call = PROTECT(Rcpp::Language(op.c_str(), left, right));
+        SEXP res = PROTECT(Rf_eval(call, R_BaseEnv));
+        
+        UNPROTECT(2); // Unprotect both call and res
+        return res;
+    }
+
+    // Identity Rules
+    if (op == "+") {
+        if (hasL && vL == 0.0) return right;
+        if (hasR && vR == 0.0) return left;
+        
+        // x + (-y) => x - y
+        if (is_unary_minus(right)) {
+            // SMART CONSTRUCTION: Don't call Simplify_cpp! Just call Simplify_Binary.
+            return Simplify_Binary("-", left, CADR(right)); 
+        }
+        // -x + y => y - x
+        if (is_unary_minus(left)) {
+            return Simplify_Binary("-", right, CADR(left));
+        }
+    }
+    if (op == "-") {
+        if (hasL && vL == 0.0) return Simplify_Unary("-", right);
+        if (hasR && vR == 0.0) return left;
+        
+        // x - (-y) => x + y
+        if (is_unary_minus(right)) {
+            return Simplify_Binary("+", left, CADR(right)); 
+        }
+        if (nodes_equal(left, right)) {
+            return Rf_ScalarReal(0.0);
+        }
+    }
+    
+    if (op == "*") {
+        if ((hasL && vL == 0.0) || (hasR && vR == 0.0)) return Rf_ScalarReal(0.0);
+        if (hasL && vL == 1.0) return right;
+        if (hasR && vR == 1.0) return left;
+        if (hasL && vL == -1.0) return Simplify_Unary("-", right);
+        if (hasR && vR == -1.0) return Simplify_Unary("-", left);
+        if (hasR) return Simplify_Binary("*", right, left);
+        
+        // (-a) * b => -(a * b)
+        if (is_unary_minus(left)) {
+            SEXP a = CADR(left);
+            // 1. Build a * b using the smart constructor (it folds constants if needed!)
+            SEXP prod = PROTECT(Simplify_Binary("*", a, right));
+            // 2. Wrap it in unary minus using the smart constructor
+            SEXP res = Simplify_Unary("-", prod);
+            UNPROTECT(1);
+            return res;
+        }
+        // a * (-b) => -(a * b)
+        if (is_unary_minus(right)) {
+            SEXP b = CADR(right);
+            // 1. Build a * b using the smart constructor (it folds constants if needed!)
+            SEXP prod = PROTECT(Simplify_Binary("*", left, b));
+            // 2. Wrap it in unary minus using the smart constructor
+            SEXP res = Simplify_Unary("-", prod);
+            UNPROTECT(1);
+            return res;
+        }
+    }
+    if (op == "/") {
+        if (hasL && vL == 0.0) return Rf_ScalarReal(0.0);
+        if (hasR && vR == 1.0) return left;
+        if (hasR && vR == -1.0) return Simplify_Unary("-", left);
+        if (hasL && vL < 0.0) return Simplify_Unary("-", Simplify_Binary("/", Rf_ScalarReal(-vL), right));
+        // x / x => 1
+        if (nodes_equal(left, right)) {
+            return Rf_ScalarReal(1.0);
+        }
+        if (is_unary_minus(right)) {
+            return Simplify_Unary("-", Simplify_Binary("/", left, CADR(right)));
+        }
+        if (is_unary_minus(left)) {
+            return Simplify_Unary("-", Simplify_Binary("/", CADR(left), right));
+        }
+    }
+    if (op == "^") {
+        if (hasR) {
+            if (vR == 0.0) return Rf_ScalarReal(1.0);
+            if (vR == 1.0) return left;
+            if (vR == 2.0) return Simplify_Binary("*", left, left);
+            if (vR == 3.0) return Simplify_Binary("*", left, Simplify_Binary("*", left, left));
+            if (vR < 0.) return Simplify_Binary("/", Rf_ScalarReal(1.0), Simplify_Binary("^", left, Rcpp::wrap(-vR)));
+        }
+    }
+
+    if (op == "log") {
+        if (nodes_equal(left, right))
+            return Rf_ScalarReal(1.0);
+    }
+
+    // No rules matched: Reconstruct call
+    return Rcpp::Language(op.c_str(), left, right);
+}
 SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment drule, Rcpp::Environment env) {
     // 1. LEAF NODES
     if (TYPEOF(expr) == REALSXP || TYPEOF(expr) == INTSXP) {
@@ -343,64 +414,88 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
         }
 
         // --- B. LOOKUP IN DRULE TABLE ---
-        //debug_print("fun=", fun);
         SEXP rules = drule.get(CHAR(PRINTNAME(fun)));
         if (rules != R_NilValue && TYPEOF(rules) == VECSXP) {
-            
             SEXP arg_names = Rf_getAttrib(rules, R_NamesSymbol);
             int num_formals = Rf_length(rules);
             
-            SEXP subst_env = PROTECT(R_NewEnv(R_NilValue, 0, 0));
-            SEXP curr_args = CDR(expr);
-            int actual_len = Rf_length(curr_args);
+            SEXP subst_env = PROTECT(R_NewEnv(R_EmptyEnv, 0, 0));
             
-            for (int i = 0; i < num_formals; i++) {
-                SEXP formal_sym = Rf_install(CHAR(STRING_ELT(arg_names, i)));
-                SEXP actual_val = R_NilValue;
-                
-                if (curr_args != R_NilValue) {
-                    actual_val = CAR(curr_args);
-                    curr_args = CDR(curr_args);
+            // Look up standard formals from target environment or base package to extract default expressions
+            SEXP fn_obj = env.exists(op) ? env.get(op) : Rf_findVar(fun, R_BaseEnv);
+            //debug_print("fn_obj", fn_obj);
+            // Safe formals retrieval for both closures and primitives
+            SEXP fn_formals = R_NilValue;
+            if (fn_obj != R_UnboundValue && fn_obj != R_NilValue) {
+                if (TYPEOF(fn_obj) == CLOSXP) {
+                    fn_formals = R_ClosureFormals(fn_obj);
                 } else {
-                    actual_val = formal_sym; 
+                    // Fallback for primitives/builtins: evaluate formals("fn_name") in base env
+                    SEXP call = PROTECT(Rcpp::Language("formals", Rcpp::Language("args", op.c_str())));
+                    fn_formals = PROTECT(Rf_eval(call, R_BaseEnv));
+                    UNPROTECT(2);
                 }
-                
-                Rf_defineVar(formal_sym, actual_val, subst_env);
             }
-            
+            //debug_print("fn_formals", fn_formals);
+            // Step 1: Pre-fill defaults from function definition
+            SEXP f_ptr = fn_formals;
+            while (f_ptr != R_NilValue) {
+                SEXP sym = TAG(f_ptr);
+                SEXP dflt = CAR(f_ptr);
+                if (TYPEOF(sym) == SYMSXP && dflt != R_MissingArg) {
+                    Rf_defineVar(sym, dflt, subst_env);
+                }
+                f_ptr = CDR(f_ptr);
+            }
+
+            // Step 2: Overlay provided actual call arguments
+            SEXP curr_args = CDR(expr);
+            int pos = 0;
+            while (curr_args != R_NilValue) {
+                SEXP arg_val = CAR(curr_args);
+                SEXP arg_tag = TAG(curr_args);
+
+                if (arg_tag != R_NilValue && TYPEOF(arg_tag) == SYMSXP) {
+                    Rf_defineVar(arg_tag, arg_val, subst_env);
+                } else if (pos < num_formals) {
+                    SEXP formal_sym = Rf_install(CHAR(STRING_ELT(arg_names, pos)));
+                    Rf_defineVar(formal_sym, arg_val, subst_env);
+                }
+                curr_args = CDR(curr_args);
+                pos++;
+            }
+
+            // Step 3: Compute total derivative against rules
             SEXP total_deriv = R_NilValue;
             curr_args = CDR(expr);
             
-            for (int i = 0; i < actual_len && i < num_formals; i++) {
+            for (int i = 0; i < num_formals; i++) {
                 SEXP rule_template = VECTOR_ELT(rules, i);
+                SEXP formal_sym = Rf_install(CHAR(STRING_ELT(arg_names, i)));
                 
-                if (rule_template == R_NilValue || curr_args == R_NilValue) {
-                    if (curr_args != R_NilValue) curr_args = CDR(curr_args);
-                    continue;
-                }
-                
-                SEXP actual_arg = CAR(curr_args);
+                // Get substituted argument or default from subst_env
+                SEXP actual_arg = Rf_findVar(formal_sym, subst_env);
+                if (actual_arg == R_UnboundValue) continue;
+
                 SEXP d_arg = PROTECT(deriv_cpp_internal(actual_arg, target, drule, env));
                 
                 if (is_numeric_val(d_arg, 0.0)) {
                     UNPROTECT(1);
-                    curr_args = CDR(curr_args);
                     continue;
                 }
-                //debug_print("subst_env", Rcpp::as<Rcpp::List>(subst_env));
+                
                 SEXP df_darg = PROTECT(substitute_expr(rule_template, subst_env));
-                SEXP term = PROTECT(Rcpp::Language("*", df_darg, d_arg));
+                SEXP term = PROTECT(Simplify_Binary("*", df_darg, d_arg));
                 
                 if (total_deriv == R_NilValue) {
                     total_deriv = term;
-                    UNPROTECT(2);
+                    UNPROTECT(2); // df_darg, term
                 } else {
-                    total_deriv = PROTECT(Rcpp::Language("+", total_deriv, term));
-                    UNPROTECT(3);
+                    total_deriv = PROTECT(Simplify_Binary("+", total_deriv, term));
+                    UNPROTECT(3); // total_deriv_old, df_darg, term
                 }
                 
                 UNPROTECT(1); // d_arg
-                curr_args = CDR(curr_args);
             }
             
             UNPROTECT(1); // subst_env
@@ -419,33 +514,16 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
         if (user_fun != R_UnboundValue && TYPEOF(user_fun) == CLOSXP) {
             SEXP formals = R_ClosureFormals(user_fun);
             SEXP body    = R_ClosureExpr(user_fun);
+            SEXP actual_args = CDR(expr);
 
-            SEXP actual_args = CDR(expr); // Skip function symbol
-            
-            // Create named Rcpp::List for parameter mapping
-            Rcpp::List subst_map;
+            // Bind formal parameters + default values + actual call overrides
+            SEXP subst_env = PROTECT(match_call_args(formals, actual_args));
 
-            while (formals != R_NilValue && actual_args != R_NilValue) {
-                SEXP formal_sym = TAG(formals);
-
-                // Fallback if formal parameter symbol is in CAR(formals)
-                if (formal_sym == R_NilValue || TYPEOF(formal_sym) != SYMSXP) {
-                    if (TYPEOF(CAR(formals)) == SYMSXP) {
-                        formal_sym = CAR(formals);
-                    }
-                }
-                if (formal_sym != R_NilValue && TYPEOF(formal_sym) == SYMSXP) {
-                    subst_map[CHAR(PRINTNAME(formal_sym))] = CAR(actual_args);
-                }
-                formals = CDR(formals);
-                actual_args = CDR(actual_args);
-            }
-
-            // Substitute body using the List mapping
-            SEXP expanded_body = PROTECT(substitute_expr(body, subst_map));
+            // Substitute function body using populated environment
+            SEXP expanded_body = PROTECT(substitute_expr(body, subst_env));
             SEXP deriv_res = deriv_cpp_internal(expanded_body, target, drule, env);
 
-            UNPROTECT(1); // expanded_body
+            UNPROTECT(2); // subst_env, expanded_body
             return Simplify_cpp(deriv_res);
         }
 
