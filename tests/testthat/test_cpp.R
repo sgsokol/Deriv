@@ -65,4 +65,5 @@ test_that("Deriv_cpp throws an error when function is in neither drule nor env",
 test_that("Deriv_cpp substitute default arguments if absent", {
   expect_equal(Deriv_cpp(quote(log(x)), "x"), quote(1 / x)) # Default base = exp(1)
   expect_equal(Deriv_cpp(quote(log(x, base=10)), "x"), quote(1 / (2.30258509299405 * x)))
+  expect_equal(Deriv_cpp(quote(pnorm(x)), "x"), quote(dnorm(x, 0, 1)))
 })

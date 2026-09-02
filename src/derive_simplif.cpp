@@ -25,37 +25,53 @@ inline bool is_unary_minus(SEXP expr) {
 }
 
 // Helper to substitute formal parameter names with actual calling arguments inside a drule template
-SEXP substitute_expr(SEXP expr, Rcpp::List subst_map) {
-    if (expr == R_NilValue) {
-        return R_NilValue;
-    }
+SEXP substitute_expr(SEXP expr, SEXP env) {
+    if (expr == R_NilValue || expr == R_UnboundValue) return expr;
 
-    // 1. Symbol Substitution
-    if (TYPEOF(expr) == SYMSXP) {
-        const char* name_str = CHAR(PRINTNAME(expr));
-        if (subst_map.containsElementNamed(name_str)) {
-            return subst_map[name_str];
+    switch_type:
+    switch (TYPEOF(expr)) {
+        case SYMSXP: {
+            SEXP val = Rf_findVar(expr, env);
+            if (val != R_UnboundValue) {
+                return val; // Substitute the variable/default value
+            }
+            return expr; // Leave unbound symbols as-is
         }
-        return expr;
-    }
-
-    // 2. Language / Call Tree Substitution
-    if (TYPEOF(expr) == LANGSXP) {
-        SEXP res = PROTECT(Rf_shallow_duplicate(expr));
-        SEXP curr_old = expr;
-        SEXP curr_new = res;
-        while (curr_old != R_NilValue) {
-            SETCAR(curr_new, substitute_expr(CAR(curr_old), subst_map));
-            SET_TAG(curr_new, TAG(curr_old));
-            curr_old = CDR(curr_old);
-            curr_new = CDR(curr_new);
+        case LANGSXP: {
+            // Reconstruct language call recursively
+            SEXP head = CAR(expr);
+            SEXP new_call = PROTECT(Rf_lcons(substitute_expr(head, env), R_NilValue));
+            SEXP tail_out = new_call;
+            
+            SEXP tail_in = CDR(expr);
+            while (tail_in != R_NilValue) {
+                SEXP evaluated_item = substitute_expr(CAR(tail_in), env);
+                SETCDR(tail_out, Rf_lcons(evaluated_item, R_NilValue));
+                
+                // Preserve argument tags (names) if present
+                if (TAG(tail_in) != R_NilValue) {
+                    SET_TAG(tail_out, TAG(tail_in));
+                }
+                
+                tail_out = CDR(tail_out);
+                tail_in = CDR(tail_in);
+            }
+            UNPROTECT(1);
+            return new_call;
         }
-        UNPROTECT(1);
-        return res;
+        // Pass literals through safely (including LGLSXP for TRUE/FALSE defaults)
+        case REALSXP:
+        case INTSXP:
+        case LGLSXP:
+        case STRSXP:
+            return expr;
+            
+        default:
+            //Rcout << "type: " << Rf_type2char(TYPEOF(expr)) << std::endl;
+            Rf_error("Unsupported expression type encountered during differentiation");
+            return R_NilValue;
     }
-    return expr;
 }
-
 // Helper functions for AST inspection and formatting
 bool is_numeric_val(SEXP x, double val) {
     if (TYPEOF(x) == REALSXP && Rf_length(x) == 1 && REAL(x)[0] == val) return true;
@@ -194,6 +210,36 @@ SEXP Simplify_cpp(SEXP expr) {
     SEXP fun = CAR(expr);
     if (TYPEOF(fun) != SYMSXP) return expr;
     std::string op = CHAR(PRINTNAME(fun));
+    if (op == "if") {
+        SEXP args = CDR(expr);
+        if (args == R_NilValue) return expr;
+
+        SEXP cond = Simplify_cpp(CAR(args));
+        SEXP true_branch = (CDR(args) != R_NilValue) ? Simplify_cpp(CADR(args)) : R_NilValue;
+        SEXP false_branch = (CDR(args) != R_NilValue && CDR(CDR(args)) != R_NilValue) 
+                            ? Simplify_cpp(CADDR(args)) 
+                            : R_NilValue;
+
+        // Simplify when condition resolves to a logical literal
+        if (TYPEOF(cond) == LGLSXP && Rf_length(cond) > 0) {
+            int val = LOGICAL(cond)[0];
+            if (val == 1) return true_branch;                     // TRUE
+            if (val == 0) return (false_branch != R_NilValue) ? false_branch : R_NilValue; // FALSE
+        }
+
+        // Fallback for numeric conditions (0 = FALSE, non-zero = TRUE)
+        if (TYPEOF(cond) == REALSXP && Rf_length(cond) > 0) {
+            double val = REAL(cond)[0];
+            if (val != 0.0) return true_branch;
+            return (false_branch != R_NilValue) ? false_branch : R_NilValue;
+        }
+
+        // Reconstruct if condition remains symbolic
+        if (false_branch == R_NilValue) {
+            return Rcpp::Language("if", cond, true_branch);
+        }
+        return Rcpp::Language("if", cond, true_branch, false_branch);
+    }
     int len = Rf_length(expr);
 
     if (len == 2) {
@@ -422,7 +468,7 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
             SEXP subst_env = PROTECT(R_NewEnv(R_EmptyEnv, 0, 0));
             
             // Look up standard formals from target environment or base package to extract default expressions
-            SEXP fn_obj = env.exists(op) ? env.get(op) : Rf_findVar(fun, R_BaseEnv);
+            SEXP fn_obj = env.find(op);
             //debug_print("fn_obj", fn_obj);
             // Safe formals retrieval for both closures and primitives
             SEXP fn_formals = R_NilValue;
@@ -471,6 +517,8 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
             
             for (int i = 0; i < num_formals; i++) {
                 SEXP rule_template = VECTOR_ELT(rules, i);
+                // Skip arguments that have no derivative rule (e.g. lower.tail, log.p)
+                if (rule_template == R_NilValue) continue;
                 SEXP formal_sym = Rf_install(CHAR(STRING_ELT(arg_names, i)));
                 
                 // Get substituted argument or default from subst_env
@@ -530,7 +578,7 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
         // --- D. UNKNOWN FUNCTION ERROR ---
         Rcpp::stop("Function '%s' has no derivative rule in 'drule' nor a function definition in 'env'", op.c_str());
     }
-
+    //Rcout << "type top: " << Rf_type2char(TYPEOF(expr)) << std::endl;
     Rcpp::stop("Unsupported expression type encountered during differentiation");
 }
 

@@ -1,7 +1,7 @@
 Logs for the Deriv package
 ==========================
 
-Version 4.3.3
+Version 4.3.4
 -------------
 
 2026-09-??
