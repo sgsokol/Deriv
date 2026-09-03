@@ -28,10 +28,9 @@ inline bool is_unary_minus(SEXP expr) {
 SEXP substitute_expr(SEXP expr, SEXP env) {
     if (expr == R_NilValue || expr == R_UnboundValue) return expr;
 
-    switch_type:
     switch (TYPEOF(expr)) {
         case SYMSXP: {
-            SEXP val = Rf_findVar(expr, env);
+            SEXP val = R_getVarEx(expr, env, TRUE, R_UnboundValue);
             if (val != R_UnboundValue) {
                 return val; // Substitute the variable/default value
             }
@@ -527,7 +526,7 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
                 SEXP formal_sym = Rf_install(CHAR(STRING_ELT(arg_names, i)));
                 
                 // Get substituted argument or default from subst_env
-                SEXP actual_arg = Rf_findVar(formal_sym, subst_env);
+                SEXP actual_arg = R_getVarEx(formal_sym, subst_env, TRUE, R_UnboundValue);;
                 if (actual_arg == R_UnboundValue) continue;
 
                 SEXP d_arg = PROTECT(deriv_cpp_internal(actual_arg, target, drule, env));
