@@ -1,8 +1,9 @@
 .Rproj.user
 .Rhistory
 .RData
-.Rbuildignore
 Deriv.Rproj
 revdep*/
 .revdepcheck/*
 !.revdepcheck/config.yml
+*.o
+*.so

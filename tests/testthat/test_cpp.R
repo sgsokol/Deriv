@@ -62,8 +62,19 @@ test_that("Deriv_cpp throws an error when function is in neither drule nor env",
     regexp = "non_existent_fn" # Matches function name in error message
   )
 })
-test_that("Deriv_cpp substitute default arguments if absent", {
+test_that("Deriv_cpp substitutes default arguments if absent", {
   expect_equal(Deriv_cpp(quote(log(x)), "x"), quote(1 / x)) # Default base = exp(1)
   expect_equal(Deriv_cpp(quote(log(x, base=10)), "x"), quote(1 / (2.30258509299405 * x)))
   expect_equal(Deriv_cpp(quote(pnorm(x)), "x"), quote(dnorm(x, 0, 1)))
 })
+test_that("Simplify_cpp simplifies arguments of any call", {
+  expect_equal(Simplify_cpp(quote(dnorm(x, 0.4, 2+1))), quote(dnorm(x, 0.4, 3)))
+})
+test_that("Simplify_cpp simplifies if (TRUE) and if (FALSE) calls", {
+  expect_equal(Simplify_cpp(quote(if (TRUE) x else y)), quote(x))
+  expect_equal(Simplify_cpp(quote(if (FALSE) x else y)), quote(y))
+  expect_equal(Simplify_cpp(quote(if (T) x else y)), quote(x))
+  expect_equal(Simplify_cpp(quote(if (F) x else y)), quote(y))
+})
+
+

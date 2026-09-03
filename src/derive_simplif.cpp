@@ -209,56 +209,61 @@ SEXP Simplify_cpp(SEXP expr) {
 
     SEXP fun = CAR(expr);
     if (TYPEOF(fun) != SYMSXP) return expr;
-    std::string op = CHAR(PRINTNAME(fun));
-    if (op == "if") {
-        SEXP args = CDR(expr);
-        if (args == R_NilValue) return expr;
+    const char* op = CHAR(PRINTNAME(fun));
 
-        SEXP cond = Simplify_cpp(CAR(args));
-        SEXP true_branch = (CDR(args) != R_NilValue) ? Simplify_cpp(CADR(args)) : R_NilValue;
-        SEXP false_branch = (CDR(args) != R_NilValue && CDR(CDR(args)) != R_NilValue) 
-                            ? Simplify_cpp(CADDR(args)) 
-                            : R_NilValue;
+    // Simplify all children/arguments first
+    SEXP new_call = PROTECT(Rf_lcons(fun, R_NilValue));
+    SEXP tail_out = new_call;
+    int len = 1;
 
-        // Simplify when condition resolves to a logical literal
+    for (SEXP tail_in = CDR(expr); tail_in != R_NilValue; tail_in = CDR(tail_in)) {
+        SEXP arg_simp = PROTECT(Simplify_cpp(CAR(tail_in)));
+        SETCDR(tail_out, Rf_cons(arg_simp, R_NilValue));
+        tail_out = CDR(tail_out);
+        
+        if (TAG(tail_in) != R_NilValue) {
+            SET_TAG(tail_out, TAG(tail_in));
+        }
+        
+        UNPROTECT(1); // arg_simp
+        len++;
+    }
+
+    SEXP res = new_call;
+
+    // Control Flow Handling (`if`) on pre-simplified args
+    if (std::strcmp(op, "if") == 0 && len >= 3) {
+        SEXP cond = CADR(new_call);
+        SEXP true_branch = CADDR(new_call);
+        SEXP false_branch = (len >= 4) ? CADDDR(new_call) : R_NilValue;
+
+        int is_true = -1;
         if (TYPEOF(cond) == LGLSXP && Rf_length(cond) > 0) {
-            int val = LOGICAL(cond)[0];
-            if (val == 1) return true_branch;                     // TRUE
-            if (val == 0) return (false_branch != R_NilValue) ? false_branch : R_NilValue; // FALSE
+            // logical values
+            is_true = LOGICAL(cond)[0];
+        } else if (TYPEOF(cond) == REALSXP && Rf_length(cond) > 0) {
+            // numeric values
+            is_true = (REAL(cond)[0] != 0.0);
+        } else if (TYPEOF(cond) == SYMSXP) {
+            // variable symbols 'T' and 'F'
+            const char* sym_name = CHAR(PRINTNAME(cond));
+            if (std::strcmp(sym_name, "T") == 0) is_true = 1;
+            else if (std::strcmp(sym_name, "F") == 0) is_true = 0;
         }
 
-        // Fallback for numeric conditions (0 = FALSE, non-zero = TRUE)
-        if (TYPEOF(cond) == REALSXP && Rf_length(cond) > 0) {
-            double val = REAL(cond)[0];
-            if (val != 0.0) return true_branch;
-            return (false_branch != R_NilValue) ? false_branch : R_NilValue;
+        if (is_true == 1) {
+            res = true_branch;
+        } else if (is_true == 0) {
+            res = false_branch; // returns R_NilValue if no else branch
         }
-
-        // Reconstruct if condition remains symbolic
-        if (false_branch == R_NilValue) {
-            return Rcpp::Language("if", cond, true_branch);
-        }
-        return Rcpp::Language("if", cond, true_branch, false_branch);
+    } else if (len == 2) {
+        res = Simplify_Unary(op, CADR(new_call));
+    } else if (len == 3) {
+        res = Simplify_Binary(op, CADR(new_call), CADDR(new_call));
     }
-    int len = Rf_length(expr);
 
-    if (len == 2) {
-        // Evaluate child fully before checking rules
-        SEXP arg = PROTECT(Simplify_cpp(CADR(expr)));
-        SEXP res = Simplify_Unary(op, arg);
-        UNPROTECT(1);
-        return res;
-    } 
-    else if (len == 3) {
-        // Evaluate children fully before checking rules
-        SEXP left = PROTECT(Simplify_cpp(CADR(expr)));
-        SEXP right = PROTECT(Simplify_cpp(CADDR(expr)));
-        SEXP res = Simplify_Binary(op, left, right);
-        UNPROTECT(2);
-        return res;
-    }
-    
-    return expr;
+    UNPROTECT(1); // new_call
+    return res;
 }
 
 // ==========================================================

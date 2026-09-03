@@ -1,13 +1,13 @@
 Logs for the Deriv package
 ==========================
 
-Version 4.3.4
+Version 4.3.5
 -------------
 
-2026-09-??
+2026-09-03
 
 - fixed issues #30 - #33
-- added several rules, among which `a*(-b)`, `(-a)*b` -> `-(a*b)`, `log(exp(x))` -> `x`; `exp(log(x))` -> `x` to Simplify_cpp()
+- added several rules to Simplify_cpp()
 - added few tests for C++ code
 
 Version 4.3.0
