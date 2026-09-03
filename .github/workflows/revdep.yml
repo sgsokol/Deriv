@@ -10,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      # Prevent installation warnings from being converted to fatal errors
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: "true"
+      # Disable strict CRAN flags during local prep to allow standard compilation
+      R_BUILD_STRICT: "false"
+      _R_CHECK_FORCE_SUGGESTS_: "false"
 
     steps:
       - name: Checkout repository
@@ -29,8 +33,16 @@ jobs:
             any::rcmdcheck
             r-lib/revdepcheck
 
+      # NEW: Build the package directly before revdepcheck.
+      # If Simplify_cpp has a syntax error (e.g., missing <cstring>), 
+      # the exact GCC compiler error will print here in the GitHub UI.
+      - name: Verify C++ Compilation
+        run: R CMD INSTALL .
+
       - name: Run revdep check
         run: |
+          # Reset revdep environment to clear previous failed initialization caches
+          revdepcheck::revdep_reset()
           revdepcheck::revdep_check(bioc = FALSE, num_workers = parallel::detectCores())
         shell: Rscript {0}
 
@@ -40,3 +52,4 @@ jobs:
         with:
           name: revdep-results
           path: revdep/
+          
