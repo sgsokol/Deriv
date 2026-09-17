@@ -1,6 +1,13 @@
 Logs for the Deriv package
 ==========================
 
+Version 4.3.6
+-------------
+
+2026-10-??
+
+- fixed issues #34 in Simplify()
+
 Version 4.3.5
 -------------
 

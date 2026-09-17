@@ -273,7 +273,8 @@ Simplify_ <- function(expr, scache) {
 	fa_nd$num$b <- append(fa_nd$num$b, rest)
 	fa_nd$num$p <- append(fa_nd$num$p, 1)
 	lc <- c(list(fa_nd), lc[-i_lc])
-	return(lc2expr(lc, scache))
+	expr <- lc2expr(lc, scache)
+	return(Simplify_(expr, scache))
 }
 
 `Simplify.-` <- function(expr, scache=NULL)
@@ -372,7 +373,7 @@ Simplify_ <- function(expr, scache) {
 				}
 			}
 			# remove power==0 terms
-			ize <- isim[-1]
+			ize <- which(sapply(nd[[na]]$p, identical, 0))
 			if (length(ize)) {
 				nd[[na]]$b <- nd[[na]]$b[-ize]
 				nd[[na]]$p <- nd[[na]]$p[-ize]
@@ -402,7 +403,7 @@ Simplify_ <- function(expr, scache) {
 		for (na in c("num", "den")) {
 			if (length(nd[[na]]$b) == 0)
 				next
-			ize=sapply(nd[[na]]$p, `==`, 0)
+			ize=sapply(nd[[na]]$p, identical, 0)
 			nd[[na]]$b <- nd[[na]]$b[!ize]
 			nd[[na]]$p <- nd[[na]]$p[!ize]
 		}
