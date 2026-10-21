@@ -420,7 +420,10 @@ SEXP deriv_cpp_internal(SEXP expr, const std::string& target, Rcpp::Environment 
     if (TYPEOF(expr) == LANGSXP) {
         SEXP fun = CAR(expr);
         if (TYPEOF(fun) != SYMSXP) {
-            Rcpp::stop("Function call head is not a valid symbol");
+            // case: li["f"](t), i.e. a function is stored somewhere, e.g. in a list
+            //Rcpp::stop("Function call head is not a valid symbol");
+            return Rf_ScalarReal(0.0);
+            //todo: search for function expression in drule table if possible
         }
         
         std::string op = CHAR(PRINTNAME(fun));
